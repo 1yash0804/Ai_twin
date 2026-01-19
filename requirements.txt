@@ -1,0 +1,16 @@
+# 1. The Server (The "Waiters" that take orders)
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+
+# 2. The Data Validation (The "Bouncers" that check ID)
+pydantic>=2.9
+pydantic-settings>=2.4
+
+#3. The Database Tools (The "Librarians")
+# pinecone-client
+# neo4j
+# redis
+
+# 4. The AI Tools (The "Brain")
+# langchain
+# openai
