@@ -17,3 +17,14 @@ class User(UserBase, table=True):
 # It inherits username/email, but adds the 'plain' password.
 class UserCreate(UserBase):
     password: str
+
+# ... (keep your existing imports and User class)
+
+class Memory(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    text: str
+    created_at: str  # We will store ISO timestamp string for simplicity
+
+class MemoryCreate(SQLModel):
+    text: str

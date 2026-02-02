@@ -7,6 +7,7 @@ pydantic>=2.9
 pydantic-settings>=2.4
 
 #3. The Database Tools (The "Librarians")
+sqlmodel==0.0.22
 # pinecone-client
 # neo4j
 # redis
@@ -14,3 +15,8 @@ pydantic-settings>=2.4
 # 4. The AI Tools (The "Brain")
 # langchain
 # openai
+
+# 5. Security & Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
