@@ -4,7 +4,7 @@ from pinecone import Pinecone
 
 # 1. Setup
 load_dotenv()
-KEY = os.getenv("pcsk_2AK51t_FpYmgopqWQLA3MY948e4Kro3bTePkQz29Up2iGixiVwavVaBYid3oV2AVvPAnJh")
+KEY = os.getenv("PINECONE_API_KEY")
 INDEX_NAME = "aitwin"
 
 # 2. Connect

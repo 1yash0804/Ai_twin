@@ -1,6 +1,6 @@
 from typing import Optional
 from sqlmodel import Field, SQLModel
-
+from datetime import datetime
 # 1. The Base Model (Shared fields)
 class UserBase(SQLModel):
     username: str = Field(index=True)
@@ -28,3 +28,11 @@ class Memory(SQLModel, table=True):
 
 class MemoryCreate(SQLModel):
     text: str
+
+class DocumentLog(SQLModel, table=True):
+    __tablename__ = "documents"
+    
+    id: int | None = Field(default=None, primary_key=True)
+    filename: str
+    upload_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    user_id: int = Field(foreign_key="user.id") 

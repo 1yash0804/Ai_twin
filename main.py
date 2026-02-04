@@ -1,13 +1,17 @@
+import shutil
+import os
+import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, status
+
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from jose import JWTError, jwt
-from app.core.redis_client import get_chat_history, add_message_to_history 
-import datetime
+from pydantic import BaseModel
 
+# --- Local Imports ---
 from app.database import create_db_and_tables, get_session
-from app.models import User, UserCreate, Memory, MemoryCreate
+from app.models import User, UserCreate, Memory, MemoryCreate, DocumentLog
 from app.core.security import (
     get_password_hash,
     verify_password,
@@ -15,27 +19,30 @@ from app.core.security import (
     SECRET_KEY,
     ALGORITHM,
 )
-from app.core.vector_store import get_vector_store, search_memories 
-from pydantic import BaseModel 
+from app.core.redis_client import get_chat_history, add_message_to_history
+from app.core.vector_store import get_vector_store, search_memories
 from app.core.llm import generate_answer
+from app.tasks import process_document_task  
+
 # =========================
-# AUTH CONFIG
+# CONFIG & SETUP
+# =========================
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+# Ensure temp folder exists for uploads
+os.makedirs("temp_uploads", exist_ok=True)
 
-# =========================
-# APP LIFESPAN
-# =========================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Runs on startup. Creates DB tables if they don't exist.
+    """
     create_db_and_tables()
-    print("✅ Database connected")
+    print("Database connected")
     yield
 
-
-app = FastAPI(lifespan=lifespan)
-
+app = FastAPI(title="AI Twin Backend", lifespan=lifespan)
 
 # =========================
 # AUTH DEPENDENCY
@@ -44,6 +51,9 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session),
 ):
+    """
+    Validates JWT token and retrieves the current user.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -67,20 +77,22 @@ async def get_current_user(
 
     return user
 
-
 # =========================
 # PUBLIC ROUTES
 # =========================
+
 @app.get("/health")
 def health_check():
-    return {"status": "active"}
-
+    return {"status": "active", "mode": "celery_async"}
 
 @app.post("/users/", response_model=User)
 def create_user(
     user_input: UserCreate,
     session: Session = Depends(get_session),
 ):
+    """
+    Register a new user.
+    """
     existing_user = session.exec(
         select(User).where(User.username == user_input.username)
     ).first()
@@ -104,12 +116,14 @@ def create_user(
 
     return user_db
 
-
 @app.post("/token")
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
 ):
+    """
+    Login to get a JWT Bearer Token.
+    """
     user = session.exec(
         select(User).where(User.username == form_data.username)
     ).first()
@@ -133,16 +147,15 @@ def login_for_access_token(
         "token_type": "bearer",
     }
 
-
 # =========================
 # PROTECTED ROUTES
 # =========================
+
 @app.get("/users/me", response_model=User)
 def read_users_me(
     current_user: User = Depends(get_current_user),
 ):
     return current_user
-
 
 @app.post("/memories/")
 def create_memory(
@@ -150,6 +163,9 @@ def create_memory(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    """
+    Manually add a text memory to the database & vector store.
+    """
     timestamp = datetime.datetime.now(datetime.UTC).isoformat()
 
     memory_db = Memory(
@@ -186,7 +202,9 @@ def create_memory(
         "id": memory_db.id,
     }
 
-# 6. CHAT / RETRIEVE (The "Recall" Endpoint) 🔍
+# =========================
+# 🧠 CHAT ENDPOINT (LangGraph)
+# =========================
 class ChatRequest(BaseModel):
     query: str
 
@@ -198,7 +216,6 @@ def chat_with_ai(
     user_id = current_user.id
 
     # 1. Get Short-Term Memory (Redis)
-    # We fetch the last 6 messages so the AI knows the context
     history = get_chat_history(user_id=user_id)
 
     # 2. Get Long-Term Memory (Pinecone)
@@ -208,11 +225,11 @@ def chat_with_ai(
         k=3
     )
     
-    # 3. Generate Answer (Brain)
+    # 3. Generate Answer (LangGraph Brain)
     response_text = generate_answer(
         query=request.query,
         context=relevant_memories,
-        history=history # <--- Pass history to brain
+        history=history
     )
 
     # 4. Save to Short-Term Memory (Redis)
@@ -223,16 +240,54 @@ def chat_with_ai(
         "response": response_text,
         "sources": relevant_memories
     }
+
+# =========================
+# 📂 UPLOAD ENDPOINT (Celery + Async)
+# =========================
+@app.post("/upload-doc/")
+async def upload_document(
+    file: UploadFile = File(...), 
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Uploads a file, saves it to disk, and triggers a Celery background task.
+    Returns immediately with a Task ID.
+    """
+    # 1. Save file locally (so the Worker can find it)
+    file_location = f"temp_uploads/{current_user.id}_{file.filename}"
+    
+    with open(file_location, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # 2. Trigger the Celery Task (Background)
+    # The API returns immediately after this line!
+    task = process_document_task.delay(
+        file_path=file_location, 
+        filename=file.filename, 
+        user_id=current_user.id
+    )
+    
+    # 3. Log to SQL (Status: Processing)
+    doc_db = DocumentLog(
+        filename=file.filename, 
+        user_id=current_user.id
+    )
+    session.add(doc_db)
+    session.commit()
+    session.refresh(doc_db)
+    
+    return {
+        "status": "queued", 
+        "task_id": task.id, 
+        "filename": file.filename,
+        "message": "File processing started in background."
+    }
+
 # =========================
 # ENTRY POINT
 # =========================
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-    )
-
-
+    # Reload=True allows you to change code without restarting
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
