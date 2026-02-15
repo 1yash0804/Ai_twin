@@ -15,10 +15,16 @@ export default function SignUp() {
         e.preventDefault();
         setLoading(true);
 
+        // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 1500));
-        alert('Account created successfully!');
+
+        // Remove the alert if you want a smoother experience
+        // alert('Account created successfully!'); 
 
         setLoading(false);
+
+        // ➤ NAVIGATE TO THE NEXT STEP
+        navigate('/onboarding/connect-platform');
     };
 
     return (
