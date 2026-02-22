@@ -12,9 +12,12 @@ sqlmodel==0.0.22
 # neo4j
 # redis
 
+
 # 4. The AI Tools (The "Brain")
-# langchain
-# openai
+langchain
+langchain-community
+langchain-groq
+httpx
 
 # 5. Security & Authentication
 python-jose[cryptography]==3.3.0

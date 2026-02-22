@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LetterGlitch from '../../components/LetterGlitch';
+import apiClient from '../../api/client';
 
 export default function Playground() {
     const navigate = useNavigate();
@@ -15,20 +16,32 @@ export default function Playground() {
         if (!input.trim()) return;
 
         const userMessage = { id: Date.now(), type: 'user', text: input };
-        setMessages([...messages, userMessage]);
+        setMessages(prev => [...prev, userMessage]);
         setInput('');
         setLoading(true);
 
-        // Simulate AI response
-        setTimeout(() => {
+        try {
+            const res = await apiClient.chat({
+                query: input,
+                modelType: 'general'
+            });
+
             const aiMessage = {
                 id: Date.now() + 1,
                 type: 'ai',
-                text: 'This is a simulated response. In the real app, this would be your AI responding in your style!'
+                text: res.response
             };
             setMessages(prev => [...prev, aiMessage]);
+        } catch (error) {
+            const errorMessage = {
+                id: Date.now() + 1,
+                type: 'ai',
+                text: "Sorry, I'm having trouble connecting to my brain right now."
+            };
+            setMessages(prev => [...prev, errorMessage]);
+        } finally {
             setLoading(false);
-        }, 1500);
+        }
     };
 
     const navItems = [
@@ -71,8 +84,8 @@ export default function Playground() {
                             key={item.id}
                             onClick={() => navigate(item.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.id === 'playground'
-                                    ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
                                 }`}
                         >
                             <span className="text-xl">{item.icon}</span>
@@ -128,8 +141,8 @@ export default function Playground() {
                             >
                                 <div className={`max-w-lg ${message.type === 'user' ? 'order-2' : 'order-1'}`}>
                                     <div className={`rounded-2xl p-4 ${message.type === 'user'
-                                            ? 'bg-primary-500 text-white'
-                                            : 'backdrop-blur-xl bg-black/60 border border-white/10 text-gray-100'
+                                        ? 'bg-primary-500 text-white'
+                                        : 'backdrop-blur-xl bg-black/60 border border-white/10 text-gray-100'
                                         }`}>
                                         {message.text}
                                     </div>

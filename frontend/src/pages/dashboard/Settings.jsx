@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LetterGlitch from '../../components/LetterGlitch';
+import apiClient from '../../api/client';
 
 export default function Settings() {
     const navigate = useNavigate();
@@ -15,6 +16,10 @@ export default function Settings() {
         notifyOnTask: true,
         notifyOnMemory: false
     });
+
+    const [autoReplyConfig, setAutoReplyConfig] = useState([]);
+    const [savingAutoReply, setSavingAutoReply] = useState(false);
+    const [error, setError] = useState('');
 
     const toggleSetting = (key) => {
         setSettings({ ...settings, [key]: !settings[key] });
@@ -35,6 +40,28 @@ export default function Settings() {
         { id: 'notifications', label: 'Notifications', icon: '🔔' },
         { id: 'account', label: 'Account', icon: '👤' }
     ];
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchConfig = async () => {
+            try {
+                setError('');
+                const res = await apiClient.get('/me/auto-reply');
+                if (!isMounted) return;
+                setAutoReplyConfig(res.data.channels || []);
+            } catch {
+                if (!isMounted) return;
+                setError('Unable to load auto-reply configuration.');
+            }
+        };
+
+        fetchConfig();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     return (
         <div className="min-h-screen flex bg-black relative">
@@ -67,8 +94,8 @@ export default function Settings() {
                             key={item.id}
                             onClick={() => navigate(item.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.id === 'settings'
-                                    ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
                                 }`}
                         >
                             <span className="text-xl">{item.icon}</span>
@@ -108,6 +135,12 @@ export default function Settings() {
                 {/* Content */}
                 <div className="p-6">
 
+                    {error && (
+                        <div className="max-w-3xl mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-200">
+                            {error}
+                        </div>
+                    )}
+
                     {/* Tabs */}
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                         {tabs.map((tab) => (
@@ -115,8 +148,8 @@ export default function Settings() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex items-center gap-2 px-4 py-3 rounded-xl font-medium whitespace-nowrap transition-all ${activeTab === tab.id
-                                        ? 'bg-white text-black'
-                                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                    ? 'bg-white text-black'
+                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                     }`}
                             >
                                 <span>{tab.icon}</span>
@@ -141,7 +174,10 @@ export default function Settings() {
                                                 <p className="text-sm text-gray-400">Connected • Last active: 2 mins ago</p>
                                             </div>
                                         </div>
-                                        <button className="px-4 py-2 rounded-xl bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-all">
+                                        <button
+                                            onClick={() => alert('WhatsApp disconnection is not yet implemented.')}
+                                            className="px-4 py-2 rounded-xl bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-all"
+                                        >
                                             Disconnect
                                         </button>
                                     </div>
@@ -158,7 +194,10 @@ export default function Settings() {
                                                 <p className="text-sm text-gray-400">Not connected</p>
                                             </div>
                                         </div>
-                                        <button className="px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white transition-all">
+                                        <button
+                                            onClick={() => window.open('https://t.me/YOUR_BOT_USERNAME', '_blank')}
+                                            className="px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white transition-all"
+                                        >
                                             Connect
                                         </button>
                                     </div>
@@ -183,71 +222,62 @@ export default function Settings() {
                             </div>
                         )}
 
-                        {/* Rules Tab */}
+                        {/* Rules Tab (now wired to backend auto-reply config) */}
                         {activeTab === 'rules' && (
                             <div className="space-y-6">
                                 <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-6">
-                                    <h3 className="text-white font-semibold mb-4">Auto-Response Rules</h3>
+                                    <h3 className="text-white font-semibold mb-4">Auto-Response by Channel</h3>
                                     <div className="space-y-4">
-
-                                        <div className="flex items-center justify-between p-4 rounded-xl bg-white/5">
-                                            <div className="flex-1">
-                                                <h4 className="text-white font-medium mb-1">Simple questions</h4>
-                                                <p className="text-sm text-gray-400">"What time?", "Where?", Yes/No questions</p>
-                                            </div>
-                                            <button
-                                                onClick={() => toggleSetting('autoRespondSimple')}
-                                                className={`relative w-12 h-6 rounded-full transition-all ${settings.autoRespondSimple ? 'bg-primary-500' : 'bg-gray-700'
-                                                    }`}
+                                        {autoReplyConfig.map((cfg) => (
+                                            <div
+                                                key={cfg.channel}
+                                                className="flex items-center justify-between p-4 rounded-xl bg-white/5"
                                             >
-                                                <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all ${settings.autoRespondSimple ? 'right-0.5' : 'left-0.5'
-                                                    }`}></div>
-                                            </button>
-                                        </div>
-
-                                        <div className="flex items-center justify-between p-4 rounded-xl bg-white/5">
-                                            <div className="flex-1">
-                                                <h4 className="text-white font-medium mb-1">Scheduling messages</h4>
-                                                <p className="text-sm text-gray-400">"Coffee at 3pm?", "Meeting tomorrow?"</p>
+                                                <div className="flex-1">
+                                                    <h4 className="text-white font-medium mb-1">
+                                                        {cfg.channel === 'telegram'
+                                                            ? 'Telegram auto-replies'
+                                                            : `${cfg.channel} auto-replies`}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-400">
+                                                        Allow AI Twin to respond automatically on {cfg.channel}.
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    disabled={savingAutoReply}
+                                                    onClick={async () => {
+                                                        try {
+                                                            setSavingAutoReply(true);
+                                                            setError('');
+                                                            const nextEnabled = !cfg.auto_reply_enabled;
+                                                            await apiClient.post('/me/auto-reply', {
+                                                                channel: cfg.channel,
+                                                                auto_reply_enabled: nextEnabled,
+                                                                confidence_threshold: cfg.confidence_threshold ?? 0,
+                                                            });
+                                                            const res = await apiClient.get('/me/auto-reply');
+                                                            setAutoReplyConfig(res.data.channels || []);
+                                                        } catch {
+                                                            setError('Failed to update auto-reply settings.');
+                                                        } finally {
+                                                            setSavingAutoReply(false);
+                                                        }
+                                                    }}
+                                                    className={`relative w-12 h-6 rounded-full transition-all ${cfg.auto_reply_enabled ? 'bg-primary-500' : 'bg-gray-700'
+                                                        } ${savingAutoReply ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                                >
+                                                    <div
+                                                        className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all ${cfg.auto_reply_enabled ? 'right-0.5' : 'left-0.5'
+                                                            }`}
+                                                    ></div>
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => toggleSetting('autoRespondScheduling')}
-                                                className={`relative w-12 h-6 rounded-full transition-all ${settings.autoRespondScheduling ? 'bg-primary-500' : 'bg-gray-700'
-                                                    }`}
-                                            >
-                                                <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all ${settings.autoRespondScheduling ? 'right-0.5' : 'left-0.5'
-                                                    }`}></div>
-                                            </button>
-                                        </div>
-
-                                        <div className="flex items-center justify-between p-4 rounded-xl bg-white/5">
-                                            <div className="flex-1">
-                                                <h4 className="text-white font-medium mb-1">Work contacts</h4>
-                                                <p className="text-sm text-gray-400">Auto-respond to professional contacts</p>
-                                            </div>
-                                            <button
-                                                onClick={() => toggleSetting('autoRespondWork')}
-                                                className={`relative w-12 h-6 rounded-full transition-all ${settings.autoRespondWork ? 'bg-primary-500' : 'bg-gray-700'
-                                                    }`}
-                                            >
-                                                <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all ${settings.autoRespondWork ? 'right-0.5' : 'left-0.5'
-                                                    }`}></div>
-                                            </button>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                                <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-6">
-                                    <h3 className="text-white font-semibold mb-2">Protected Contacts</h3>
-                                    <p className="text-sm text-gray-400 mb-4">AI will never auto-respond to these people</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="px-3 py-1 rounded-full bg-white/10 text-gray-300 text-sm">Family</span>
-                                        <span className="px-3 py-1 rounded-full bg-white/10 text-gray-300 text-sm">Close Friends</span>
-                                        <span className="px-3 py-1 rounded-full bg-white/10 text-gray-300 text-sm">Unknown Numbers</span>
-                                        <button className="px-3 py-1 rounded-full border border-white/20 text-gray-400 hover:bg-white/5 text-sm">
-                                            + Add
-                                        </button>
+                                        ))}
+                                        {autoReplyConfig.length === 0 && (
+                                            <p className="text-sm text-gray-400">
+                                                No channels configured yet. Connect a platform first.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

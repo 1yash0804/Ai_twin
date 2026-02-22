@@ -1,74 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LetterGlitch from '../../components/LetterGlitch';
+import apiClient from '../../api/client';
 
 export default function Activity() {
     const navigate = useNavigate();
     const [filter, setFilter] = useState('all');
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
-    const activities = [
-        {
-            id: 1,
-            type: 'response',
-            time: '2 mins ago',
-            from: 'Unknown Number (+91-XXX-XXXX)',
-            message: 'Hey, is this Yash?',
-            aiResponse: 'Sorry, who is this? 🤔',
-            status: 'sent',
-            icon: '✉️'
-        },
-        {
-            id: 2,
-            type: 'task',
-            time: '10 mins ago',
-            from: 'Work Group Chat',
-            message: 'Team meeting at 2pm today',
-            extracted: 'Team meeting @ 2pm today',
-            addedTo: 'Google Calendar',
-            icon: '✅'
-        },
-        {
-            id: 3,
-            type: 'response',
-            time: '1 hour ago',
-            from: 'Sarah',
-            message: 'Coffee at 3pm tomorrow?',
-            aiResponse: 'Sounds good! See you then 😊',
-            status: 'sent',
-            icon: '✉️'
-        },
-        {
-            id: 4,
-            type: 'memory',
-            time: '1 hour ago',
-            from: 'Sarah',
-            message: 'I prefer oat milk btw',
-            extracted: 'Sarah prefers oat milk',
-            category: 'Preferences',
-            icon: '💭'
-        },
-        {
-            id: 5,
-            type: 'response',
-            time: '3 hours ago',
-            from: 'Mom',
-            message: 'Did you eat lunch?',
-            aiResponse: 'Yes mom, just had it! 😊',
-            status: 'sent',
-            icon: '✉️'
-        },
-        {
-            id: 6,
-            type: 'task',
-            time: '5 hours ago',
-            from: 'Mike',
-            message: 'Don\'t forget to call me this weekend',
-            extracted: 'Call Mike this weekend',
-            addedTo: 'Tasks',
-            icon: '✅'
-        }
-    ];
+    const [activities, setActivities] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchActivities = async () => {
+            try {
+                const res = await apiClient.get('/me/activities');
+                // Transform backend data to UI format
+                const formatted = res.data.map(a => {
+                    if (a.type === 'memory') {
+                        return {
+                            id: a.id,
+                            type: 'memory',
+                            time: new Date(a.created_at).toLocaleString(),
+                            from: a.source,
+                            message: `Created memory: "${a.text}"`,
+                            extracted: a.text,
+                            category: 'Memory',
+                            icon: '💭'
+                        };
+                    } else if (a.type === 'task') {
+                        return {
+                            id: a.id,
+                            type: 'task',
+                            time: new Date(a.created_at).toLocaleString(),
+                            from: a.source,
+                            message: `New task: "${a.text}"`,
+                            extracted: a.text,
+                            addedTo: 'Tasks',
+                            icon: '✅'
+                        };
+                    }
+                    return null;
+                }).filter(Boolean);
+                setActivities(formatted);
+            } catch (error) {
+                console.error('Failed to fetch activity:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchActivities();
+    }, []);
 
     const filteredActivities = filter === 'all'
         ? activities
@@ -114,8 +96,8 @@ export default function Activity() {
                             key={item.id}
                             onClick={() => navigate(item.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.id === 'activity'
-                                    ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
                                 }`}
                         >
                             <span className="text-xl">{item.icon}</span>
@@ -165,8 +147,8 @@ export default function Activity() {
                         <button
                             onClick={() => setFilter('all')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'all'
-                                    ? 'bg-white text-black'
-                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                ? 'bg-white text-black'
+                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                 }`}
                         >
                             All Activity
@@ -174,8 +156,8 @@ export default function Activity() {
                         <button
                             onClick={() => setFilter('response')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'response'
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                 }`}
                         >
                             Responses
@@ -183,8 +165,8 @@ export default function Activity() {
                         <button
                             onClick={() => setFilter('task')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'task'
-                                    ? 'bg-green-500 text-white'
-                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                ? 'bg-green-500 text-white'
+                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                 }`}
                         >
                             Tasks
@@ -192,112 +174,94 @@ export default function Activity() {
                         <button
                             onClick={() => setFilter('memory')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'memory'
-                                    ? 'bg-purple-500 text-white'
-                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                ? 'bg-purple-500 text-white'
+                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                 }`}
                         >
                             Memories
                         </button>
                     </div>
 
-                    {/* Activity List */}
-                    <div className="space-y-4">
-                        {filteredActivities.map((activity) => (
-                            <div
-                                key={activity.id}
-                                className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-6 hover:bg-black/50 transition-all"
-                            >
-                                <div className="flex items-start gap-4">
+                    {loading && (
+                        <div className="text-center py-12 text-gray-400">Loading activity...</div>
+                    )}
 
-                                    {/* Icon */}
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${activity.type === 'response' ? 'bg-blue-500/20' :
+                    {/* Activity List */}
+                    {!loading && (
+                        <div className="space-y-4">
+                            {filteredActivities.map((activity) => (
+                                <div
+                                    key={activity.id}
+                                    className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-6 hover:bg-black/50 transition-all"
+                                >
+                                    <div className="flex items-start gap-4">
+
+                                        {/* Icon */}
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${activity.type === 'response' ? 'bg-blue-500/20' :
                                             activity.type === 'task' ? 'bg-green-500/20' :
                                                 'bg-purple-500/20'
-                                        }`}>
-                                        <span className="text-2xl">{activity.icon}</span>
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-
-                                        {/* Header */}
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <span className="text-white font-semibold">{activity.from}</span>
-                                            <span className="text-xs text-gray-500">•</span>
-                                            <span className="text-xs text-gray-400">{activity.time}</span>
-                                            {activity.type === 'response' && (
-                                                <>
-                                                    <span className="text-xs text-gray-500">•</span>
-                                                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">
-                                                        Auto-responded
-                                                    </span>
-                                                </>
-                                            )}
+                                            }`}>
+                                            <span className="text-2xl">{activity.icon}</span>
                                         </div>
 
-                                        {/* Message */}
-                                        <div className="space-y-3">
-                                            <div className="p-3 rounded-lg bg-white/5 border border-white/5">
-                                                <p className="text-sm text-gray-300">"{activity.message}"</p>
+                                        {/* Content */}
+                                        <div className="flex-1 min-w-0">
+
+                                            {/* Header */}
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="text-white font-semibold">{activity.from}</span>
+                                                <span className="text-xs text-gray-500">•</span>
+                                                <span className="text-xs text-gray-400">{activity.time}</span>
                                             </div>
 
-                                            {/* Response */}
-                                            {activity.type === 'response' && (
-                                                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                                    <div className="flex items-start gap-2">
-                                                        <span className="text-xs text-blue-400 font-semibold">AI:</span>
-                                                        <p className="text-sm text-blue-300">"{activity.aiResponse}"</p>
-                                                    </div>
+                                            {/* Message */}
+                                            <div className="space-y-3">
+                                                <div className="p-3 rounded-lg bg-white/5 border border-white/5">
+                                                    <p className="text-sm text-gray-300">"{activity.message}"</p>
                                                 </div>
-                                            )}
 
-                                            {/* Task */}
-                                            {activity.type === 'task' && (
-                                                <div className="flex items-center gap-2">
-                                                    <div className="px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20">
-                                                        <p className="text-sm text-green-300">✅ {activity.extracted}</p>
+                                                {/* Task */}
+                                                {activity.type === 'task' && (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                                                            <p className="text-sm text-green-300">✅ {activity.extracted}</p>
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">→ Added to {activity.addedTo}</span>
                                                     </div>
-                                                    <span className="text-xs text-gray-500">→ Added to {activity.addedTo}</span>
-                                                </div>
-                                            )}
+                                                )}
 
-                                            {/* Memory */}
-                                            {activity.type === 'memory' && (
-                                                <div className="flex items-center gap-2">
-                                                    <div className="px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                                                        <p className="text-sm text-purple-300">💭 {activity.extracted}</p>
+                                                {/* Memory */}
+                                                {activity.type === 'memory' && (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                                                            <p className="text-sm text-purple-300">💭 {activity.extracted}</p>
+                                                        </div>
+                                                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
+                                                            {activity.category}
+                                                        </span>
                                                     </div>
-                                                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
-                                                        {activity.category}
-                                                    </span>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
+
+                                            {/* Actions */}
+                                            <div className="flex items-center gap-3 mt-4">
+                                                <button className="text-xs text-gray-400 hover:text-white transition-colors">
+                                                    View conversation
+                                                </button>
+                                            </div>
+
                                         </div>
-
-                                        {/* Actions */}
-                                        <div className="flex items-center gap-3 mt-4">
-                                            <button className="text-xs text-gray-400 hover:text-white transition-colors">
-                                                View conversation
-                                            </button>
-                                            {activity.type === 'response' && (
-                                                <>
-                                                    <span className="text-gray-600">•</span>
-                                                    <button className="text-xs text-gray-400 hover:text-white transition-colors">
-                                                        Edit response
-                                                    </button>
-                                                    <span className="text-gray-600">•</span>
-                                                    <button className="text-xs text-red-400 hover:text-red-300 transition-colors">
-                                                        Undo
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                            {filteredActivities.length === 0 && (
+                                <div className="text-center py-12">
+                                    <div className="text-6xl mb-4">🔍</div>
+                                    <p className="text-gray-400">No activity found</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                 </div>
 

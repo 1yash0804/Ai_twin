@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Welcome from './pages/onboarding/Welcome';
 import SignUp from './pages/onboarding/SignUp';
+import Login from './pages/onboarding/Login';
 import ConnectPlatform from './pages/onboarding/ConnectPlatform';
 import UploadChats from './pages/onboarding/UploadChats';
 import SetRules from './pages/onboarding/SetRules';
@@ -22,6 +23,7 @@ function App() {
         {/* Onboarding Flow */}
         <Route path="/welcome" element={<Welcome />} />
         <Route path="/onboarding/signup" element={<SignUp />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/onboarding/connect-platform" element={<ConnectPlatform />} />
         <Route path="/onboarding/upload-chats" element={<UploadChats />} />
         <Route path="/onboarding/set-rules" element={<SetRules />} />
