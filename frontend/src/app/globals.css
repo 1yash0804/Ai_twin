@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  --background-primary: #FFFFFF;
+  --background-secondary: #F8FAFC;
+  --surface: #FFFFFF;
+  --border: #E2E8F0;
+  --text-primary: #0F172A;
+  --text-secondary: #64748B;
+  --accent-primary: #4F46E5;
+  --accent-hover: #4338CA;
+  --danger: #EF4444;
+  --success: #10B981;
+}
+
+@theme inline {
+  --color-background-primary: var(--background-primary);
+  --color-background-secondary: var(--background-secondary);
+  --color-surface: var(--surface);
+  --color-border-primary: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-hover: var(--accent-hover);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+}
+
+/* Base styles */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Typography Utilities */
+.display {
+  @apply text-5xl font-semibold tracking-tight text-slate-900;
+}
+
+.h1 {
+  @apply text-4xl font-semibold text-slate-900;
+}
+
+.h2 {
+  @apply text-3xl font-semibold text-slate-900;
+}
+
+.h3 {
+  @apply text-2xl font-medium text-slate-900;
+}
+
+.body-large {
+  @apply text-lg text-slate-600;
+}
+
+.body {
+  @apply text-base text-slate-500;
+}
+
+.caption {
+  @apply text-sm text-slate-400;
+}
+
+/* Motion presets */
+.hover-lift {
+  @apply transition-transform duration-200 ease-out hover:-translate-y-[2px];
+}
+
+.hover-glow {
+  @apply transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10;
+}
