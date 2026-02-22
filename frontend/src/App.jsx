@@ -12,6 +12,10 @@ import Tasks from './pages/dashboard/Tasks';
 import Memories from './pages/dashboard/Memories';
 import Playground from './pages/dashboard/Playground';
 import Settings from './pages/dashboard/Settings';
+import Terms from './pages/static/Terms';
+import Privacy from './pages/static/Privacy';
+import HelpCenter from './pages/static/HelpCenter';
+import Tutorial from './pages/static/Tutorial';
 
 function App() {
   return (
@@ -36,6 +40,11 @@ function App() {
         <Route path="/dashboard/memories" element={<Memories />} />
         <Route path="/dashboard/playground" element={<Playground />} />
         <Route path="/dashboard/settings" element={<Settings />} />
+
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/help" element={<HelpCenter />} />
+        <Route path="/tutorial" element={<Tutorial />} />
       </Routes>
     </BrowserRouter>
   );

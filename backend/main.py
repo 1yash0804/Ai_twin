@@ -33,6 +33,11 @@ from app.models import (
     Task,
     UserLoraAdapter,
     UserChannelConfig,
+    InboundMessage,
+    Commitment,
+    DeadlineInference,
+    ExtractedTaskRecord,
+    PipelineRun,
 )
 from app.core.security import (
     get_password_hash,
@@ -516,8 +521,6 @@ def get_me_activities(
     activity_feed.sort(key=lambda x: x["created_at"], reverse=True)
 
     return activity_feed
-
-
 
 
 async def pipeline_worker_loop():

@@ -237,7 +237,7 @@ export default function UploadChats() {
 
                     {/* Help Text */}
                     <p className="text-xs text-gray-500 text-center">
-                        Need help exporting? <a href="#" className="text-primary-400 hover:underline">Watch tutorial</a>
+                        Need help exporting? <a href="/tutorial" className="text-primary-400 hover:underline">Watch tutorial</a>
                     </p>
 
                 </div>

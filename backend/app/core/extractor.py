@@ -4,16 +4,19 @@ import os
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import List, Optional
-import openai
 
 # ================= CONFIG =================
-# Local Ollama OpenAI-compatible API
-client = openai.OpenAI(
-    base_url="http://localhost:11434/v1",
-    api_key="ollama"  # dummy key required
-)
-
 DB_PATH = "../database.db"
+
+
+def _get_openai_client():
+    import openai
+
+    return openai.OpenAI(
+        base_url="http://localhost:11434/v1",
+        api_key="ollama",
+    )
+
 
 # ================= DATA MODELS =================
 class ExtractedTask(BaseModel):
@@ -98,6 +101,7 @@ def analyze_text_with_llm(text: str) -> AnalysisResult:
     If nothing found, return empty arrays.
     """
 
+    client = _get_openai_client()
     response = client.chat.completions.create(
         model="phi3",
         messages=[
