@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0F172A;
+  --bg-secondary: #111827;
+  --surface: #1F2937;
+  --border: #334155;
+  --text-primary: #F9FAFB;
+  --text-secondary: #94A3B8;
+  --accent-primary: #6366F1;
+  --accent-hover: #4F46E5;
+  --danger: #DC2626;
+  --success: #16A34A;
+}
+
+body {
+  background: radial-gradient(circle at 20% 0%, rgba(99,102,241,0.12), transparent 35%), var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.container-shell { @apply max-w-6xl mx-auto px-6; }
+.section-pad { @apply py-24; }
+.surface-card { @apply p-6 rounded-2xl border border-slate-700 bg-slate-800/60 transition-all duration-200; }
+.surface-card:hover { transform: translateY(-2px); border-color: rgba(99,102,241,.4); }
+.btn-primary { @apply px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 transition-all duration-200 shadow-lg; }
+.btn-secondary { @apply px-5 py-3 rounded-xl border border-slate-600 hover:bg-slate-800 transition-all duration-200; }
