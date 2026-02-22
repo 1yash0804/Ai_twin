@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import LetterGlitch from '../../components/LetterGlitch';
 import apiClient from '../../api/client';
 
 export default function Memories() {
@@ -53,27 +52,17 @@ export default function Memories() {
     ];
 
     return (
-        <div className="min-h-screen flex bg-black relative">
-
-            {/* Matrix Background */}
-            <div className="absolute inset-0 opacity-30">
-                <LetterGlitch
-                    glitchColors={['#0a3d2c', '#22c55e', '#4ade80']}
-                    glitchSpeed={100}
-                    outerVignette={true}
-                    smooth={true}
-                />
-            </div>
+        <div className="min-h-screen flex bg-gradient-to-b from-white via-sky-50 to-white relative">
 
             {/* Sidebar */}
-            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-black/80 border-r border-white/10 transition-all duration-300 flex flex-col`}>
+            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-white/90 border-r border-gray-200 transition-all duration-300 flex flex-col`}>
 
-                <div className="p-6 border-b border-white/10">
+                <div className="p-6 border-b border-gray-200">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xl font-bold text-white">AT</span>
+                            <span className="text-xl font-bold text-gray-900">AT</span>
                         </div>
-                        {sidebarOpen && <span className="text-xl font-bold text-white">AI Twin</span>}
+                        {sidebarOpen && <span className="text-xl font-bold text-gray-900">AI Twin</span>}
                     </div>
                 </div>
 
@@ -83,8 +72,8 @@ export default function Memories() {
                             key={item.id}
                             onClick={() => navigate(item.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.id === 'memories'
-                                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-primary-500/20 text-primary-700 border border-primary-500/30'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             <span className="text-xl">{item.icon}</span>
@@ -93,10 +82,10 @@ export default function Memories() {
                     ))}
                 </nav>
 
-                <div className="p-4 border-t border-white/10">
+                <div className="p-4 border-t border-gray-200">
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all"
+                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all"
                     >
                         <span className="text-xl">{sidebarOpen ? '←' : '→'}</span>
                         {sidebarOpen && <span className="font-medium">Collapse</span>}
@@ -108,18 +97,18 @@ export default function Memories() {
             <main className="flex-1 relative z-10 overflow-auto">
 
                 {/* Header */}
-                <header className="backdrop-blur-xl bg-black/60 border-b border-white/10 p-6">
+                <header className="backdrop-blur-xl bg-white/80 border-b border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-white mb-1">Memories</h1>
-                            <p className="text-gray-400">What your AI remembers about people</p>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-1">Memories</h1>
+                            <p className="text-gray-600">What your AI remembers about people</p>
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <button className="px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-medium transition-all">
+                            <button className="px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-gray-900 font-medium transition-all">
                                 + Add Memory
                             </button>
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-white font-semibold">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-gray-900 font-semibold">
                                 Y
                             </div>
                         </div>
@@ -130,28 +119,28 @@ export default function Memories() {
                 <div className="p-6 max-w-6xl">
 
                     {loading && (
-                        <div className="text-center py-12 text-gray-400">Loading memories...</div>
+                        <div className="text-center py-12 text-gray-600">Loading memories...</div>
                     )}
 
                     {!loading && (
                         <>
                             {/* Stats */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                                <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-                                    <div className="text-2xl font-bold text-white">{memories.length}</div>
-                                    <div className="text-sm text-gray-400">Total memories</div>
+                                <div className="backdrop-blur-xl bg-white border border-gray-200 rounded-2xl p-4">
+                                    <div className="text-2xl font-bold text-gray-900">{memories.length}</div>
+                                    <div className="text-sm text-gray-600">Total memories</div>
                                 </div>
-                                <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-                                    <div className="text-2xl font-bold text-white">{people.length - 1}</div>
-                                    <div className="text-sm text-gray-400">People tracked</div>
+                                <div className="backdrop-blur-xl bg-white border border-gray-200 rounded-2xl p-4">
+                                    <div className="text-2xl font-bold text-gray-900">{people.length - 1}</div>
+                                    <div className="text-sm text-gray-600">People tracked</div>
                                 </div>
-                                <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-                                    <div className="text-2xl font-bold text-white">{new Set(memories.map(m => m.category)).size}</div>
-                                    <div className="text-sm text-gray-400">Categories</div>
+                                <div className="backdrop-blur-xl bg-white border border-gray-200 rounded-2xl p-4">
+                                    <div className="text-2xl font-bold text-gray-900">{new Set(memories.map(m => m.category)).size}</div>
+                                    <div className="text-sm text-gray-600">Categories</div>
                                 </div>
-                                <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-                                    <div className="text-2xl font-bold text-white">3</div>
-                                    <div className="text-sm text-gray-400">This week</div>
+                                <div className="backdrop-blur-xl bg-white border border-gray-200 rounded-2xl p-4">
+                                    <div className="text-2xl font-bold text-gray-900">3</div>
+                                    <div className="text-sm text-gray-600">This week</div>
                                 </div>
                             </div>
 
@@ -163,7 +152,7 @@ export default function Memories() {
                                         placeholder="Search memories..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                                     />
                                 </div>
                                 <div className="flex gap-2 overflow-x-auto">
@@ -172,8 +161,8 @@ export default function Memories() {
                                             key={person}
                                             onClick={() => setSelectedPerson(person)}
                                             className={`px-4 py-3 rounded-xl font-medium whitespace-nowrap transition-all ${selectedPerson === person
-                                                ? 'bg-primary-500 text-white'
-                                                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                                                ? 'bg-primary-500 text-gray-900'
+                                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                                                 }`}
                                         >
                                             {person === 'all' ? 'All People' : person}
@@ -187,7 +176,7 @@ export default function Memories() {
                                 {filteredMemories.map((memory) => (
                                     <div
                                         key={memory.id}
-                                        className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-6 hover:bg-black/50 transition-all group"
+                                        className="backdrop-blur-xl bg-white border border-gray-200 rounded-2xl p-6 hover:bg-white/95 transition-all group"
                                     >
                                         <div className="flex items-start gap-4">
                                             {/* Icon */}
@@ -199,7 +188,7 @@ export default function Memories() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-start justify-between gap-2 mb-2">
                                                     <div>
-                                                        <h3 className="text-white font-semibold mb-1">{memory.person}</h3>
+                                                        <h3 className="text-gray-900 font-semibold mb-1">{memory.person}</h3>
                                                         <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
                                                             {memory.category}
                                                         </span>
@@ -207,7 +196,7 @@ export default function Memories() {
                                                     <span className="text-xs text-gray-500 whitespace-nowrap">{memory.date}</span>
                                                 </div>
 
-                                                <p className="text-gray-300 mb-2">
+                                                <p className="text-gray-700 mb-2">
                                                     {memory.memory}
                                                 </p>
 
@@ -218,7 +207,7 @@ export default function Memories() {
 
                                             {/* Actions */}
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all">
+                                                <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-all">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                                                     </svg>
@@ -233,7 +222,7 @@ export default function Memories() {
                             {filteredMemories.length === 0 && (
                                 <div className="text-center py-12">
                                     <div className="text-6xl mb-4">🔍</div>
-                                    <p className="text-gray-400">No memories found</p>
+                                    <p className="text-gray-600">No memories found</p>
                                 </div>
                             )}
                         </>

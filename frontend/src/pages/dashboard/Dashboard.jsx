@@ -12,7 +12,6 @@ import {
     ArrowRight,
 } from 'lucide-react';
 
-import LetterGlitch from '../../components/LetterGlitch';
 import apiClient from '../../api/client';
 
 export default function Dashboard() {
@@ -128,29 +127,19 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="min-h-screen flex bg-black relative">
-
-            {/* Background */}
-            <div className="absolute inset-0 opacity-30">
-                <LetterGlitch
-                    glitchColors={['#0a3d2c', '#22c55e', '#4ade80']}
-                    glitchSpeed={100}
-                    outerVignette={true}
-                    smooth={true}
-                />
-            </div>
+        <div className="min-h-screen flex bg-gradient-to-b from-white via-sky-50 to-white relative">
 
             {/* Sidebar */}
-            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-black/80 border-r border-white/10 transition-all duration-300 flex flex-col`}>
+            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-white/90 border-r border-gray-200 transition-all duration-300 flex flex-col`}>
 
                 {/* Logo */}
-                <div className="p-6 border-b border-white/10">
+                <div className="p-6 border-b border-gray-200">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center">
-                            <span className="text-xl font-bold text-white">AT</span>
+                            <span className="text-xl font-bold text-gray-900">AT</span>
                         </div>
                         {sidebarOpen && (
-                            <span className="text-xl font-bold text-white">AI Twin</span>
+                            <span className="text-xl font-bold text-gray-900">AI Twin</span>
                         )}
                     </div>
                 </div>
@@ -164,8 +153,8 @@ export default function Dashboard() {
                                 key={item.id}
                                 onClick={() => navigate(item.path)}
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.id === 'overview'
-                                        ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                                        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                        ? 'bg-primary-500/20 text-primary-700 border border-primary-500/30'
+                                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                     }`}
                             >
                                 <Icon className="w-5 h-5" />
@@ -178,10 +167,10 @@ export default function Dashboard() {
                 </nav>
 
                 {/* Collapse */}
-                <div className="p-4 border-t border-white/10">
+                <div className="p-4 border-t border-gray-200">
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white"
+                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                     >
                         <span>{sidebarOpen ? '←' : '→'}</span>
                         {sidebarOpen && <span>Collapse</span>}
@@ -193,19 +182,19 @@ export default function Dashboard() {
             <main className="flex-1 relative z-10 overflow-auto">
 
                 {/* Header */}
-                <header className="backdrop-blur-xl bg-black/60 border-b border-white/10 p-6">
+                <header className="backdrop-blur-xl bg-white/80 border-b border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-white">
+                            <h1 className="text-3xl font-bold text-gray-900">
                                 Good afternoon, Yash
                             </h1>
-                            <p className="text-gray-400">
+                            <p className="text-gray-600">
                                 Your AI Twin is running smoothly
                             </p>
                         </div>
 
-                        <button className="relative p-2 rounded-xl bg-white/5 hover:bg-white/10">
-                            <Bell className="w-5 h-5 text-gray-300" />
+                        <button className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100">
+                            <Bell className="w-5 h-5 text-gray-700" />
                             <span className="absolute top-1 right-1 w-2 h-2 bg-primary-500 rounded-full" />
                         </button>
                     </div>
@@ -215,7 +204,7 @@ export default function Dashboard() {
                 <div className="p-6 space-y-6">
 
                     {error && (
-                        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-200">
+                        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-700">
                             {error}
                         </div>
                     )}
@@ -248,15 +237,15 @@ export default function Dashboard() {
 /* Small reusable stat card */
 function StatCard({ icon: Icon, label, value }) {
     return (
-        <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-6">
+        <div className="backdrop-blur-xl bg-white border border-gray-200 rounded-2xl p-6">
             <div className="flex items-start justify-between mb-4">
-                <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-white" />
+                <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-gray-900" />
                 </div>
-                <span className="text-xs text-gray-400">Today</span>
+                <span className="text-xs text-gray-600">Today</span>
             </div>
-            <div className="text-4xl font-bold text-white">{value}</div>
-            <div className="text-sm text-gray-400">{label}</div>
+            <div className="text-4xl font-bold text-gray-900">{value}</div>
+            <div className="text-sm text-gray-600">{label}</div>
         </div>
     );
 }

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Welcome from './pages/onboarding/Welcome';
-import SignUp from './pages/onboarding/SignUp';
+import SignUp from './pages/onboarding/signup';
 import Login from './pages/onboarding/Login';
 import ConnectPlatform from './pages/onboarding/ConnectPlatform';
 import UploadChats from './pages/onboarding/UploadChats';
