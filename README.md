@@ -166,3 +166,9 @@ FastAPI provides automatic interactive documentation:
 
 **Yash Singh**  
 *CSE Student | AI Systems Builder*
+
+## 📐 Multi-channel Architecture Upgrade Plan
+
+A concrete migration plan for adding WhatsApp/Slack/Telegram/Email ingestion, queue-based processing, explicit intelligence stages, and operational tracking is documented here:
+
+- `backend/docs/multi_channel_ingestion_plan.md`

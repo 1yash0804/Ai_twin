@@ -267,9 +267,9 @@ export default function SignUp() {
                     {/* Terms */}
                     <p className="text-xs text-gray-500 text-center pt-2">
                         By continuing, you agree to our{' '}
-                        <a href="#" className="underline hover:text-gray-400">Terms</a>
+                        <a href="/terms" className="underline hover:text-gray-400">Terms</a>
                         {' '}and{' '}
-                        <a href="#" className="underline hover:text-gray-400">Privacy Policy</a>
+                        <a href="/privacy" className="underline hover:text-gray-400">Privacy Policy</a>
                     </p>
 
                 </div>

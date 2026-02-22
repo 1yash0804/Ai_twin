@@ -167,7 +167,7 @@ export default function AhaPreview() {
                             </button>
                             <span>•</span>
                             <button
-                                onClick={() => navigate('/settings')}
+                                onClick={() => navigate('/dashboard/settings')}
                                 className="hover:text-white transition-colors"
                             >
                                 Settings

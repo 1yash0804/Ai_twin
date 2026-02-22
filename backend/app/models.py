@@ -71,3 +71,57 @@ class UserChannelConfig(SQLModel, table=True):
     confidence_threshold: float = 0.0
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# --- Multi-channel ingestion pipeline tables ---
+class InboundMessage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    organization_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    source: str
+    external_message_id: str = Field(index=True)
+    raw_payload: str
+    normalized_payload: str
+    status: str = "received"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Commitment(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    organization_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    message_id: str = Field(index=True)
+    commitment_detected: bool
+    confidence_score: float
+    subject: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DeadlineInference(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    organization_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    message_id: str = Field(index=True)
+    inferred_deadline: Optional[str] = None
+    confidence_score: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ExtractedTaskRecord(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    organization_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    message_id: str = Field(index=True)
+    description: str
+    confidence_score: float
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PipelineRun(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    organization_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    message_id: str = Field(index=True)
+    status: str = "completed"
+    stage_notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
