@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import LetterGlitch from '../../components/LetterGlitch';
 import apiClient from '../../api/client';
 
 export default function Activity() {
@@ -66,27 +65,17 @@ export default function Activity() {
     ];
 
     return (
-        <div className="min-h-screen flex bg-black relative">
-
-            {/* Matrix Background */}
-            <div className="absolute inset-0 opacity-30">
-                <LetterGlitch
-                    glitchColors={['#0a3d2c', '#22c55e', '#4ade80']}
-                    glitchSpeed={100}
-                    outerVignette={true}
-                    smooth={true}
-                />
-            </div>
+        <div className="min-h-screen flex bg-gradient-to-b from-white via-sky-50 to-white relative">
 
             {/* Sidebar */}
-            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-black/80 border-r border-white/10 transition-all duration-300 flex flex-col`}>
+            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-white/90 border-r border-gray-200 transition-all duration-300 flex flex-col`}>
 
-                <div className="p-6 border-b border-white/10">
+                <div className="p-6 border-b border-gray-200">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xl font-bold text-white">AT</span>
+                            <span className="text-xl font-bold text-gray-900">AT</span>
                         </div>
-                        {sidebarOpen && <span className="text-xl font-bold text-white">AI Twin</span>}
+                        {sidebarOpen && <span className="text-xl font-bold text-gray-900">AI Twin</span>}
                     </div>
                 </div>
 
@@ -96,8 +85,8 @@ export default function Activity() {
                             key={item.id}
                             onClick={() => navigate(item.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.id === 'activity'
-                                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-primary-500/20 text-primary-700 border border-primary-500/30'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             <span className="text-xl">{item.icon}</span>
@@ -106,10 +95,10 @@ export default function Activity() {
                     ))}
                 </nav>
 
-                <div className="p-4 border-t border-white/10">
+                <div className="p-4 border-t border-gray-200">
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all"
+                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all"
                     >
                         <span className="text-xl">{sidebarOpen ? '←' : '→'}</span>
                         {sidebarOpen && <span className="font-medium">Collapse</span>}
@@ -121,18 +110,18 @@ export default function Activity() {
             <main className="flex-1 relative z-10 overflow-auto">
 
                 {/* Header */}
-                <header className="backdrop-blur-xl bg-black/60 border-b border-white/10 p-6">
+                <header className="backdrop-blur-xl bg-white/80 border-b border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-white mb-1">Activity Feed</h1>
-                            <p className="text-gray-400">Everything your AI has done</p>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-1">Activity Feed</h1>
+                            <p className="text-gray-600">Everything your AI has done</p>
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <button className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all">
+                            <button className="px-4 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-all">
                                 Export
                             </button>
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-white font-semibold">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-gray-900 font-semibold">
                                 Y
                             </div>
                         </div>
@@ -148,7 +137,7 @@ export default function Activity() {
                             onClick={() => setFilter('all')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'all'
                                 ? 'bg-white text-black'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             All Activity
@@ -156,8 +145,8 @@ export default function Activity() {
                         <button
                             onClick={() => setFilter('response')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'response'
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                ? 'bg-blue-500 text-gray-900'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             Responses
@@ -165,8 +154,8 @@ export default function Activity() {
                         <button
                             onClick={() => setFilter('task')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'task'
-                                ? 'bg-green-500 text-white'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                ? 'bg-green-500 text-gray-900'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             Tasks
@@ -174,8 +163,8 @@ export default function Activity() {
                         <button
                             onClick={() => setFilter('memory')}
                             className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === 'memory'
-                                ? 'bg-purple-500 text-white'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                ? 'bg-purple-500 text-gray-900'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             Memories
@@ -183,7 +172,7 @@ export default function Activity() {
                     </div>
 
                     {loading && (
-                        <div className="text-center py-12 text-gray-400">Loading activity...</div>
+                        <div className="text-center py-12 text-gray-600">Loading activity...</div>
                     )}
 
                     {/* Activity List */}
@@ -192,7 +181,7 @@ export default function Activity() {
                             {filteredActivities.map((activity) => (
                                 <div
                                     key={activity.id}
-                                    className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-6 hover:bg-black/50 transition-all"
+                                    className="backdrop-blur-xl bg-white border border-gray-200 rounded-2xl p-6 hover:bg-white/95 transition-all"
                                 >
                                     <div className="flex items-start gap-4">
 
@@ -209,15 +198,15 @@ export default function Activity() {
 
                                             {/* Header */}
                                             <div className="flex items-center gap-2 mb-3">
-                                                <span className="text-white font-semibold">{activity.from}</span>
+                                                <span className="text-gray-900 font-semibold">{activity.from}</span>
                                                 <span className="text-xs text-gray-500">•</span>
-                                                <span className="text-xs text-gray-400">{activity.time}</span>
+                                                <span className="text-xs text-gray-600">{activity.time}</span>
                                             </div>
 
                                             {/* Message */}
                                             <div className="space-y-3">
-                                                <div className="p-3 rounded-lg bg-white/5 border border-white/5">
-                                                    <p className="text-sm text-gray-300">"{activity.message}"</p>
+                                                <div className="p-3 rounded-lg bg-gray-50 border border-white/5">
+                                                    <p className="text-sm text-gray-700">"{activity.message}"</p>
                                                 </div>
 
                                                 {/* Task */}
@@ -245,7 +234,7 @@ export default function Activity() {
 
                                             {/* Actions */}
                                             <div className="flex items-center gap-3 mt-4">
-                                                <button className="text-xs text-gray-400 hover:text-white transition-colors">
+                                                <button className="text-xs text-gray-600 hover:text-gray-900 transition-colors">
                                                     View conversation
                                                 </button>
                                             </div>
@@ -257,7 +246,7 @@ export default function Activity() {
                             {filteredActivities.length === 0 && (
                                 <div className="text-center py-12">
                                     <div className="text-6xl mb-4">🔍</div>
-                                    <p className="text-gray-400">No activity found</p>
+                                    <p className="text-gray-600">No activity found</p>
                                 </div>
                             )}
                         </div>

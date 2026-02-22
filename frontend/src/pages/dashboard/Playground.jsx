@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import LetterGlitch from '../../components/LetterGlitch';
 import apiClient from '../../api/client';
 
 export default function Playground() {
@@ -54,27 +53,17 @@ export default function Playground() {
     ];
 
     return (
-        <div className="min-h-screen flex bg-black relative">
-
-            {/* Matrix Background */}
-            <div className="absolute inset-0 opacity-30">
-                <LetterGlitch
-                    glitchColors={['#0a3d2c', '#22c55e', '#4ade80']}
-                    glitchSpeed={100}
-                    outerVignette={true}
-                    smooth={true}
-                />
-            </div>
+        <div className="min-h-screen flex bg-gradient-to-b from-white via-sky-50 to-white relative">
 
             {/* Sidebar */}
-            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-black/80 border-r border-white/10 transition-all duration-300 flex flex-col`}>
+            <aside className={`relative z-10 ${sidebarOpen ? 'w-64' : 'w-20'} backdrop-blur-xl bg-white/90 border-r border-gray-200 transition-all duration-300 flex flex-col`}>
 
-                <div className="p-6 border-b border-white/10">
+                <div className="p-6 border-b border-gray-200">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xl font-bold text-white">AT</span>
+                            <span className="text-xl font-bold text-gray-900">AT</span>
                         </div>
-                        {sidebarOpen && <span className="text-xl font-bold text-white">AI Twin</span>}
+                        {sidebarOpen && <span className="text-xl font-bold text-gray-900">AI Twin</span>}
                     </div>
                 </div>
 
@@ -84,8 +73,8 @@ export default function Playground() {
                             key={item.id}
                             onClick={() => navigate(item.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.id === 'playground'
-                                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-primary-500/20 text-primary-700 border border-primary-500/30'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             <span className="text-xl">{item.icon}</span>
@@ -94,10 +83,10 @@ export default function Playground() {
                     ))}
                 </nav>
 
-                <div className="p-4 border-t border-white/10">
+                <div className="p-4 border-t border-gray-200">
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all"
+                        className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all"
                     >
                         <span className="text-xl">{sidebarOpen ? '←' : '→'}</span>
                         {sidebarOpen && <span className="font-medium">Collapse</span>}
@@ -109,11 +98,11 @@ export default function Playground() {
             <main className="flex-1 relative z-10 flex flex-col">
 
                 {/* Header */}
-                <header className="backdrop-blur-xl bg-black/60 border-b border-white/10 p-6 flex-shrink-0">
+                <header className="backdrop-blur-xl bg-white/80 border-b border-gray-200 p-6 flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-white mb-1">AI Playground</h1>
-                            <p className="text-gray-400">Test how your AI responds</p>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-1">AI Playground</h1>
+                            <p className="text-gray-600">Test how your AI responds</p>
                         </div>
 
                         <div className="flex items-center gap-4">
@@ -123,7 +112,7 @@ export default function Playground() {
                                     <span className="text-sm text-primary-300 font-medium">85% Match</span>
                                 </div>
                             </div>
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-white font-semibold">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-gray-900 font-semibold">
                                 Y
                             </div>
                         </div>
@@ -141,8 +130,8 @@ export default function Playground() {
                             >
                                 <div className={`max-w-lg ${message.type === 'user' ? 'order-2' : 'order-1'}`}>
                                     <div className={`rounded-2xl p-4 ${message.type === 'user'
-                                        ? 'bg-primary-500 text-white'
-                                        : 'backdrop-blur-xl bg-black/60 border border-white/10 text-gray-100'
+                                        ? 'bg-primary-500 text-gray-900'
+                                        : 'backdrop-blur-xl bg-white/80 border border-gray-200 text-gray-100'
                                         }`}>
                                         {message.text}
                                     </div>
@@ -155,7 +144,7 @@ export default function Playground() {
 
                         {loading && (
                             <div className="flex justify-start">
-                                <div className="backdrop-blur-xl bg-black/60 border border-white/10 rounded-2xl p-4">
+                                <div className="backdrop-blur-xl bg-white/80 border border-gray-200 rounded-2xl p-4">
                                     <div className="flex items-center gap-2">
                                         <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce"></div>
                                         <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
@@ -169,26 +158,26 @@ export default function Playground() {
                 </div>
 
                 {/* Input Area */}
-                <div className="backdrop-blur-xl bg-black/60 border-t border-white/10 p-6 flex-shrink-0">
+                <div className="backdrop-blur-xl bg-white/80 border-t border-gray-200 p-6 flex-shrink-0">
                     <div className="max-w-3xl mx-auto">
 
                         {/* Quick Prompts */}
                         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                             <button
                                 onClick={() => setInput('How would you respond to: "Want to grab lunch?"')}
-                                className="px-4 py-2 rounded-xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap text-sm"
+                                className="px-4 py-2 rounded-xl bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all whitespace-nowrap text-sm"
                             >
                                 Test lunch invite
                             </button>
                             <button
                                 onClick={() => setInput('Someone asks "What are you up to?"')}
-                                className="px-4 py-2 rounded-xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap text-sm"
+                                className="px-4 py-2 rounded-xl bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all whitespace-nowrap text-sm"
                             >
                                 Casual check-in
                             </button>
                             <button
                                 onClick={() => setInput('How would you decline a meeting politely?')}
-                                className="px-4 py-2 rounded-xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap text-sm"
+                                className="px-4 py-2 rounded-xl bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all whitespace-nowrap text-sm"
                             >
                                 Decline meeting
                             </button>
@@ -202,12 +191,12 @@ export default function Playground() {
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                                 placeholder="Type a scenario or question..."
-                                className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                             />
                             <button
                                 onClick={handleSend}
                                 disabled={!input.trim() || loading}
-                                className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-gray-900 font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Send
                             </button>

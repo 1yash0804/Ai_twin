@@ -1,9 +1,11 @@
 import os
 import shutil
+import asyncio
 from datetime import datetime
 import httpx
 
 from contextlib import asynccontextmanager
+import contextlib
 from fastapi import (
     FastAPI,
     Depends,
@@ -21,7 +23,7 @@ from pydantic import BaseModel
 from pathlib import Path
 
 # --- Local Imports ---
-from app.database import create_db_and_tables, get_session
+from app.database import create_db_and_tables, get_session, engine
 from app.models import (
     User,
     UserCreate,
@@ -44,6 +46,9 @@ from app.core.classifier import IntentClassifier
 from app.core.memory_manager import MemoryManager
 from app.core.cache import ResponseCache
 from app.tasks import process_document_task
+from app.ingestion.gateway import normalize_telegram_message
+from app.queue.in_memory import message_queue
+from app.pipeline.runner import process_pipeline_message
 
 # =========================
 # CONFIG & SETUP
@@ -67,7 +72,14 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 async def lifespan(app: FastAPI):
     create_db_and_tables()
     print("Database connected & Tables created")
-    yield
+
+    worker_task = asyncio.create_task(pipeline_worker_loop())
+    try:
+        yield
+    finally:
+        worker_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker_task
 
 
 app = FastAPI(title="AI Twin Backend", lifespan=lifespan)
@@ -506,129 +518,71 @@ def get_me_activities(
     return activity_feed
 
 
-from fastapi import APIRouter, Request, BackgroundTasks, Depends
-from sqlmodel import Session
-from app.core.extractor import extract_and_save
 
-# --- 1. The Heavy Worker (Runs in Background) ---
-async def process_chat_logic(chat_id: int, sender_name: str, incoming_text: str, user_id: str, session: Session):
-    """
-    This runs AFTER we reply 'OK' to Telegram. 
-    It handles the AI thinking so Telegram doesn't timeout.
-    """
-    print(f"⚙️ Worker started for: {incoming_text}")
-    
-    # A. Memory Management
-    memory = MemoryManager(user_id=user_id, session=session)
-    memory.add_message(f"friend_{sender_name}", incoming_text)
-    context_block = memory.build_context(incoming_text)
 
-    # B. Generate Reply (The Fast Brain)
-    # Even if this takes 20 seconds, Telegram won't care anymore!
-    system_prompt = (
-        f"You are the AI Twin of Yash. "
-        f"A friend named {sender_name} just texted you. "
-        f"Reply exactly how Yash would.\n"
-        f"Context:\n{context_block}"
-    )
-    
-    try:
-        response_text = generate_answer(
-            query=incoming_text,
-            context=[], 
-            history=[], 
-            model_type="local", 
-            adapter_name="phi3", 
-            system_context=system_prompt
-        )
-        
-        # C. Send Reply to Telegram
-        memory.add_message("assistant", response_text)
-        await send_telegram_message(chat_id, response_text)
-        print(f"✅ Reply sent to {sender_name}")
+async def pipeline_worker_loop():
+    """Continuously consumes normalized messages from queue and runs pipeline."""
+    from sqlmodel import Session
 
-    except Exception as e:
-        print(f"❌ AI Generation Failed: {e}")
-        return
+    while True:
+        msg = await message_queue.consume()
+        try:
+            with Session(engine) as worker_session:
+                result = process_pipeline_message(msg, worker_session)
+                print(f"✅ Pipeline processed: {result.message_id}")
 
-    # D. The Slow Brain (Extractor)
-    # Runs after the reply is sent
-    try:
-        extract_and_save(user_id=user_id, message_text=incoming_text, source=f"telegram_{sender_name}")
-    except Exception as e:
-        print(f"❌ Extractor Failed: {e}")
+                # Optional Telegram auto-reply using existing AI stack
+                if msg.source == "telegram" and msg.external_chat_id:
+                    memory = MemoryManager(user_id=msg.user_id, session=worker_session)
+                    memory.add_message(f"friend_{msg.metadata.get('sender_name', 'Friend')}", msg.text)
+                    context_block = memory.build_context(msg.text)
 
-# --- 2. The Webhook Endpoint (The Receptionist) ---
+                    response_text = generate_answer(
+                        query=msg.text,
+                        context=[],
+                        history=[],
+                        model_type="local",
+                        adapter_name="phi3",
+                        system_context=(
+                            f"You are the AI Twin of Yash. "
+                            f"A friend named {msg.metadata.get('sender_name', 'Friend')} just texted you. "
+                            f"Reply exactly how Yash would.\n"
+                            f"Context:\n{context_block}"
+                        ),
+                    )
+                    memory.add_message("assistant", response_text)
+                    await send_telegram_message(int(msg.external_chat_id), response_text)
+        except Exception as exc:
+            print(f"❌ Pipeline worker failure: {exc}")
+
+
 @app.post("/webhook/telegram")
 async def telegram_webhook(
-    request: Request, 
-    background_tasks: BackgroundTasks, 
-    session: Session = Depends(get_session)
+    request: Request,
+    session: Session = Depends(get_session),
 ):
-    # A. Receive Data Fast
     try:
-        data = await request.json()
+        payload = await request.json()
     except Exception:
-        return {"status": "ignored"} 
-
-    if "message" not in data:
         return {"status": "ignored"}
-        
-    message = data["message"]
-    
-    if "text" not in message:
-        return {"status": "no_text"}
-        
-    # B. Extract minimal info needed for the worker
-    chat_id = message["chat"]["id"]
-    sender_name = message["from"].get("first_name", "Friend")
-    incoming_text = message["text"]
-    user_id = "yash"
-    
-    print(f"📩 Received: {incoming_text} (Evaluating auto-reply config...)")
 
-    # Optional: check per-channel auto-reply configuration.
-    # If a config exists and auto_reply_enabled is False, we just acknowledge.
+    normalized = normalize_telegram_message(payload)
+    if not normalized:
+        return {"status": "ignored"}
+
     config = session.exec(
         select(UserChannelConfig).where(
-            UserChannelConfig.user_id == user_id,
+            UserChannelConfig.user_id == normalized.user_id,
             UserChannelConfig.channel == "telegram",
         )
     ).first()
 
     if config and not config.auto_reply_enabled:
-        print("ℹ️ Auto-reply disabled for user/channel; skipping AI reply.")
         return {"status": "auto_reply_disabled"}
 
-    print(f"📩 Auto-reply enabled. Queuing task for: {incoming_text}")
+    await message_queue.publish(normalized)
+    return {"status": "queued", "message_id": normalized.external_message_id}
 
-    # C. Hand off to Background Task
-    # This tells FastAPI: "Return 200 OK now, but run this function immediately after."
-    background_tasks.add_task(
-        process_chat_logic, 
-        chat_id, 
-        sender_name, 
-        incoming_text, 
-        user_id, 
-        session
-    )
-
-    # D. Return 200 OK Instantly
-    return {"status": "ok"}
-
-    # ==========================================
-    # 🧠 THE "SLOW BRAIN" ACTIVATION
-    # ==========================================
-    # This runs silently in the background AFTER the reply is sent.
-    # It won't make your friend wait.
-    background_tasks.add_task(
-        extract_and_save, 
-        user_id=user_id, 
-        message_text=incoming_text,
-        source=f"telegram_{sender_name}"
-    )
-
-    return {"status": "ok"}
 
 # =========================
 # DOCUMENT UPLOAD
