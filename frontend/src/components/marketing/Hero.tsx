@@ -24,8 +24,8 @@ export default function Hero() {
                         <div className="space-y-6">
                             <FadeUp>
                                 <h1 className="text-5xl lg:text-7xl font-semibold text-slate-900 leading-[1.05] tracking-tight">
-                                    WhatsApp Was Built for Chat.<br />
-                                    <span className="text-slate-400">Not for Running a Business.</span>
+                                    Your Work Lives in Chat.<br />
+                                    <span className="text-slate-400">That’s the Problem.</span>
                                 </h1>
                             </FadeUp>
 
