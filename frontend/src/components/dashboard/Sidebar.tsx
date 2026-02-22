@@ -15,8 +15,8 @@ export default function Sidebar() {
     const pathname = usePathname();
 
     return (
-        <aside className="w-72 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0">
-            <div className="h-16 flex items-center gap-3 px-8 border-b border-slate-100/80">
+        <aside className="hidden lg:flex w-64 xl:w-72 bg-white border-r border-slate-200/90 flex-col h-screen sticky top-0">
+            <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-100/80">
                 <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
@@ -25,15 +25,15 @@ export default function Sidebar() {
                 <span className="font-bold text-lg text-slate-900 tracking-tight">TwinLabs</span>
             </div>
 
-            <nav className="flex-1 p-6 space-y-2">
+            <nav className="flex-1 p-4 xl:p-6 space-y-1.5">
                 {navItems.map((item) => {
                     const isActive = pathname === item.href;
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-bold text-sm group ${isActive
-                                    ? "bg-indigo-50 text-indigo-600"
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-semibold text-sm group ${isActive
+                                    ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100"
                                     : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                                 }`}
                         >
@@ -44,8 +44,8 @@ export default function Sidebar() {
                 })}
             </nav>
 
-            <div className="p-6 border-t border-slate-100">
-                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/50">
+            <div className="p-4 xl:p-6 border-t border-slate-100">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/40">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Live Status</p>
                     <div className="flex items-center gap-2.5">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
