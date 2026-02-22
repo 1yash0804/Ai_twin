@@ -3,8 +3,8 @@ import { Bell, Search } from "lucide-react";
 
 export default function Topbar() {
     return (
-        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-10 sticky top-0 z-10 backdrop-blur-md bg-white/80">
-            <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 w-80 shadow-sm focus-within:border-indigo-600/50 transition-colors">
+        <header className="h-16 bg-white/90 border-b border-slate-200/80 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-20 backdrop-blur-md">
+            <div className="hidden md:flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 w-full max-w-sm shadow-sm focus-within:border-indigo-600/50 transition-colors">
                 <Search className="w-4 h-4 text-slate-400 font-bold" />
                 <input
                     type="text"
@@ -13,13 +13,13 @@ export default function Topbar() {
                 />
             </div>
 
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-4 sm:gap-6">
                 <button className="relative p-2.5 rounded-xl hover:bg-slate-50 transition-colors group">
                     <Bell className="w-4.5 h-4.5 text-slate-400 group-hover:text-slate-900 transition-colors" />
                     <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-indigo-600 rounded-full border-2 border-white" />
                 </button>
 
-                <div className="h-6 w-px bg-slate-200" />
+                <div className="hidden sm:block h-6 w-px bg-slate-200" />
 
                 <div className="flex items-center gap-4">
                     <div className="text-right hidden sm:block">
