@@ -1,7 +1,10 @@
 import os
 import shutil
 import asyncio
-from datetime import datetime
+import random
+import smtplib
+from email.message import EmailMessage
+from datetime import datetime, timedelta
 import httpx
 
 from contextlib import asynccontextmanager
@@ -17,6 +20,7 @@ from fastapi import (
     BackgroundTasks,
 )
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -89,6 +93,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AI Twin Backend", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+pending_signup_otps: dict[str, dict[str, str | datetime]] = {}
+
 # TELEGRAM HELPER
 
 async def send_telegram_message(chat_id: int, text: str):
@@ -136,6 +150,32 @@ def health_check():
     return {"status": "active", "mode": "hybrid_brain (Groq + Ollama)"}
 
 
+
+
+@app.get("/setup/requirements")
+def setup_requirements():
+    """Returns runtime configuration readiness for full-stack integration."""
+    return {
+        "backend": {
+            "secret_key": bool(os.getenv("SECRET_KEY")),
+            "database_url": bool(os.getenv("DATABASE_URL")),
+            "cors_allow_origins": os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"),
+        },
+        "auth_otp": {
+            "smtp_host": bool(os.getenv("SMTP_HOST")),
+            "smtp_user": bool(os.getenv("SMTP_USER")),
+            "smtp_password": bool(os.getenv("SMTP_PASSWORD")),
+        },
+        "llm": {
+            "groq_api_key": bool(os.getenv("GROQ_API_KEY")),
+            "ollama_expected_local": True,
+        },
+        "extraction": {
+            "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+            "pinecone_api_key": bool(os.getenv("PINECONE_API_KEY")),
+            "pinecone_index": os.getenv("PINECONE_INDEX", "aitwin"),
+        },
+    }
 @app.post("/users/", response_model=User)
 def create_user(
     user_input: UserCreate,
@@ -221,6 +261,102 @@ class ChannelConfigUpdate(BaseModel):
     channel: str
     auto_reply_enabled: bool
     confidence_threshold: float = 0.0
+
+
+class SignupOtpRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class SignupOtpVerify(BaseModel):
+    email: str
+    otp: str
+
+
+def send_otp_email(to_email: str, otp: str):
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    smtp_from = os.getenv("SMTP_FROM", smtp_user or "no-reply@aitwin.local")
+
+    if not smtp_host or not smtp_user or not smtp_password:
+        print(f"⚠️ SMTP is not configured. OTP for {to_email}: {otp}")
+        return
+
+    msg = EmailMessage()
+    msg["Subject"] = "Your AI Twin verification code"
+    msg["From"] = smtp_from
+    msg["To"] = to_email
+    msg.set_content(f"Your OTP for AI Twin signup is: {otp}. It expires in 10 minutes.")
+
+    with smtplib.SMTP(smtp_host, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+
+
+@app.post("/auth/request-signup-otp")
+def request_signup_otp(
+    payload: SignupOtpRequest,
+    session: Session = Depends(get_session),
+):
+    existing_username = session.exec(
+        select(User).where(User.username == payload.username)
+    ).first()
+    if existing_username:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    existing_email = session.exec(
+        select(User).where(User.email == payload.email)
+    ).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    otp = f"{random.randint(0, 999999):06d}"
+    pending_signup_otps[payload.email] = {
+        "username": payload.username,
+        "email": payload.email,
+        "password": payload.password,
+        "otp": otp,
+        "expires_at": datetime.utcnow() + timedelta(minutes=10),
+    }
+
+    send_otp_email(payload.email, otp)
+    return {"status": "otp_sent", "email": payload.email}
+
+
+@app.post("/auth/verify-signup-otp", response_model=User)
+def verify_signup_otp(
+    payload: SignupOtpVerify,
+    session: Session = Depends(get_session),
+):
+    pending = pending_signup_otps.get(payload.email)
+    if not pending:
+        raise HTTPException(status_code=400, detail="No pending signup found for this email")
+
+    expires_at = pending.get("expires_at")
+    if not isinstance(expires_at, datetime) or datetime.utcnow() > expires_at:
+        pending_signup_otps.pop(payload.email, None)
+        raise HTTPException(status_code=400, detail="OTP expired. Please request a new one")
+
+    if str(pending["otp"]) != payload.otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    user_db = User(
+        username=str(pending["username"]),
+        email=str(pending["email"]),
+        hashed_password=get_password_hash(str(pending["password"])),
+        is_active=True,
+    )
+
+    session.add(user_db)
+    session.commit()
+    session.refresh(user_db)
+    pending_signup_otps.pop(payload.email, None)
+
+    return user_db
 
 
 @app.post("/chat/")
