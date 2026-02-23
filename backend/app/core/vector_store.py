@@ -7,7 +7,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 load_dotenv()
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-INDEX_NAME = "aitwin"
+INDEX_NAME = os.getenv("PINECONE_INDEX", "aitwin")
 
 def get_vector_store():
     # 1. Safety Check for API Key

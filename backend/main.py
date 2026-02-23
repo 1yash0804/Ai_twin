@@ -150,6 +150,32 @@ def health_check():
     return {"status": "active", "mode": "hybrid_brain (Groq + Ollama)"}
 
 
+
+
+@app.get("/setup/requirements")
+def setup_requirements():
+    """Returns runtime configuration readiness for full-stack integration."""
+    return {
+        "backend": {
+            "secret_key": bool(os.getenv("SECRET_KEY")),
+            "database_url": bool(os.getenv("DATABASE_URL")),
+            "cors_allow_origins": os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"),
+        },
+        "auth_otp": {
+            "smtp_host": bool(os.getenv("SMTP_HOST")),
+            "smtp_user": bool(os.getenv("SMTP_USER")),
+            "smtp_password": bool(os.getenv("SMTP_PASSWORD")),
+        },
+        "llm": {
+            "groq_api_key": bool(os.getenv("GROQ_API_KEY")),
+            "ollama_expected_local": True,
+        },
+        "extraction": {
+            "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+            "pinecone_api_key": bool(os.getenv("PINECONE_API_KEY")),
+            "pinecone_index": os.getenv("PINECONE_INDEX", "aitwin"),
+        },
+    }
 @app.post("/users/", response_model=User)
 def create_user(
     user_input: UserCreate,
