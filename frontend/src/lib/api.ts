@@ -12,17 +12,6 @@ export type UserCreatePayload = {
   is_active?: boolean;
 };
 
-export type SignupOtpRequestPayload = {
-  username: string;
-  email: string;
-  password: string;
-};
-
-export type SignupOtpVerifyPayload = {
-  email: string;
-  otp: string;
-};
-
 export type StatsResponse = {
   messages_responded: number;
   tasks_extracted: number;
@@ -41,14 +30,12 @@ export type ActivityItem = {
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const fallback = `Request failed with status ${response.status}`;
-    const contentType = response.headers.get("content-type") ?? "";
-
-    if (contentType.includes("application/json")) {
+    try {
       const data = (await response.json()) as { detail?: string };
       throw new Error(data.detail ?? fallback);
+    } catch {
+      throw new Error(fallback);
     }
-
-    throw new Error(fallback);
   }
 
   return (await response.json()) as T;
@@ -59,26 +46,6 @@ export async function createUser(payload: UserCreatePayload) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...payload, is_active: payload.is_active ?? true }),
-  });
-
-  return parseJson(response);
-}
-
-export async function requestSignupOtp(payload: SignupOtpRequestPayload) {
-  const response = await fetch(`${API_BASE_URL}/auth/request-signup-otp`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  return parseJson<{ status: string; email: string }>(response);
-}
-
-export async function verifySignupOtp(payload: SignupOtpVerifyPayload) {
-  const response = await fetch(`${API_BASE_URL}/auth/verify-signup-otp`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
   });
 
   return parseJson(response);
