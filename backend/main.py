@@ -3,6 +3,7 @@ import shutil
 import asyncio
 import random
 import smtplib
+import logging
 from email.message import EmailMessage
 from datetime import datetime, timedelta
 import httpx
@@ -56,6 +57,7 @@ from app.core.memory_manager import MemoryManager
 from app.core.cache import ResponseCache
 from app.tasks import process_document_task
 from app.ingestion.gateway import normalize_telegram_message
+from app.services.telegram_processing import process_telegram_message
 from app.queue.in_memory import message_queue
 from app.pipeline.runner import process_pipeline_message
 
@@ -73,9 +75,11 @@ os.makedirs("temp_uploads", exist_ok=True)
 # TELEGRAM CONFIG
 # =========================
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET")
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}" if TELEGRAM_BOT_TOKEN else None
+ENABLE_TELEGRAM_POLLING = os.getenv("ENABLE_TELEGRAM_POLLING", "false").lower() == "true"
 
-# ✅ Correct: Use the variable name inside the braces
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+logger = logging.getLogger("ai_twin.telegram")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,14 +87,16 @@ async def lifespan(app: FastAPI):
     print("Database connected & Tables created")
 
     worker_task = asyncio.create_task(pipeline_worker_loop())
-    polling_task = asyncio.create_task(telegram_polling_loop())
+    polling_task = asyncio.create_task(telegram_polling_loop()) if ENABLE_TELEGRAM_POLLING else None
     try:
         yield
     finally:
         worker_task.cancel()
-        polling_task.cancel()
+        if polling_task:
+            polling_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await asyncio.gather(worker_task, polling_task)
+            tasks = [worker_task] + ([polling_task] if polling_task else [])
+            await asyncio.gather(*tasks)
 
 
 app = FastAPI(title="AI Twin Backend", lifespan=lifespan)
@@ -108,11 +114,15 @@ pending_signup_otps: dict[str, dict[str, str | datetime]] = {}
 # TELEGRAM HELPER
 
 async def send_telegram_message(chat_id: int, text: str):
+    if not TELEGRAM_API_URL:
+        logger.warning("Telegram token missing; cannot send message")
+        return
+
     url = f"{TELEGRAM_API_URL}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
 
     async with httpx.AsyncClient() as client:
-        await client.post(url, json=payload)
+        await client.post(url, json=payload, timeout=20.0)
 
 
 # AUTH DEPENDENCY
@@ -149,7 +159,7 @@ async def get_current_user(
 # =========================
 @app.get("/health")
 def health_check():
-    return {"status": "active", "mode": "hybrid_brain (Groq + Ollama)"}
+    return {"status": "active", "mode": "groq"}
 
 
 
@@ -170,7 +180,6 @@ def setup_requirements():
         },
         "llm": {
             "groq_api_key": bool(os.getenv("GROQ_API_KEY")),
-            "ollama_expected_local": True,
         },
         "extraction": {
             "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
@@ -276,7 +285,7 @@ class SignupOtpVerify(BaseModel):
     otp: str
 
 
-def send_otp_email(to_email: str, otp: str):
+def send_otp_email(to_email: str, otp: str) -> tuple[bool, str | None]:
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER")
@@ -284,8 +293,7 @@ def send_otp_email(to_email: str, otp: str):
     smtp_from = os.getenv("SMTP_FROM", smtp_user or "no-reply@aitwin.local")
 
     if not smtp_host or not smtp_user or not smtp_password:
-        print(f"⚠️ SMTP is not configured. OTP for {to_email}: {otp}")
-        return
+        return False, "SMTP is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD."
 
     msg = EmailMessage()
     msg["Subject"] = "Your AI Twin verification code"
@@ -293,10 +301,24 @@ def send_otp_email(to_email: str, otp: str):
     msg["To"] = to_email
     msg.set_content(f"Your OTP for AI Twin signup is: {otp}. It expires in 10 minutes.")
 
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
+    use_ssl = smtp_port == 465
+    try:
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
+                server.ehlo()
+                if os.getenv("SMTP_USE_STARTTLS", "true").lower() == "true":
+                    server.starttls()
+                    server.ehlo()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        return True, None
+    except Exception as exc:
+        logger.exception("Failed to send OTP email to %s", to_email)
+        return False, str(exc)
 
 
 @app.post("/auth/request-signup-otp")
@@ -325,7 +347,11 @@ def request_signup_otp(
         "expires_at": datetime.utcnow() + timedelta(minutes=10),
     }
 
-    send_otp_email(payload.email, otp)
+    sent, error_message = send_otp_email(payload.email, otp)
+    if not sent:
+        pending_signup_otps.pop(payload.email, None)
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {error_message}")
+
     return {"status": "otp_sent", "email": payload.email}
 
 
@@ -386,19 +412,7 @@ def chat_with_ai(
                 "used_model": "cache ⚡",
             }
 
-    if intent in ["coding", "factual"]:
-        selected_model = "general"
-        adapter = None
-    elif intent == "personal":
-        selected_model = "local"
-        adapter = "phi3"
-    else:
-        selected_model = "local"
-        adapter = "phi3"
-
-    if request.model_type != "general":
-        selected_model = request.model_type
-        adapter = request.adapter_name
+    selected_model = "general"
 
     context_block = memory.build_context(request.query)
 
@@ -407,7 +421,7 @@ def chat_with_ai(
         context=[],
         history=[],
         model_type=selected_model,
-        adapter_name=adapter,
+        adapter_name=None,
         system_context=context_block,
     )
 
@@ -670,38 +684,20 @@ async def pipeline_worker_loop():
         try:
             with Session(engine) as worker_session:
                 result = process_pipeline_message(msg, worker_session)
-                print(f"✅ Pipeline processed: {result.message_id}")
-
-                # Optional Telegram auto-reply using existing AI stack
-                if msg.source == "telegram" and msg.external_chat_id:
-                    memory = MemoryManager(user_id=msg.user_id, session=worker_session)
-                    memory.add_message(f"friend_{msg.metadata.get('sender_name', 'Friend')}", msg.text)
-                    context_block = memory.build_context(msg.text)
-
-                    response_text = generate_answer(
-                        query=msg.text,
-                        context=[],
-                        history=[],
-                        model_type="local",
-                        adapter_name="phi3",
-                        system_context=(
-                            f"You are the AI Twin of Yash. "
-                            f"A friend named {msg.metadata.get('sender_name', 'Friend')} just texted you. "
-                            f"Reply exactly how Yash would.\n"
-                            f"Context:\n{context_block}"
-                        ),
-                    )
-                    memory.add_message("assistant", response_text)
-                    await send_telegram_message(int(msg.external_chat_id), response_text)
+                logger.info("Pipeline processed message_id=%s", result.message_id)
         except Exception as exc:
-            print(f"❌ Pipeline worker failure: {exc}")
+            logger.exception("Pipeline worker failure: %s", exc)
 
 
 async def telegram_polling_loop():
-    """Continuously polls Telegram for new messages (Local Dev alternative to webhooks)."""
+    """Optional polling loop for local fallback only."""
+    if not TELEGRAM_API_URL:
+        logger.warning("Telegram polling disabled: missing TELEGRAM_BOT_TOKEN")
+        return
+
     offset = 0
-    print("🤖 Telegram polling started...")
-    
+    logger.info("Telegram polling started")
+
     while True:
         try:
             async with httpx.AsyncClient() as client:
@@ -710,19 +706,15 @@ async def telegram_polling_loop():
                     data = resp.json()
                     for update in data.get("result", []):
                         offset = update["update_id"] + 1
-                        
-                        # Process just like a webhook
                         normalized = normalize_telegram_message(update)
                         if normalized:
-                            print(f"📥 Telegram message received: {normalized.text}")
                             await message_queue.publish(normalized)
-                            
                 elif resp.status_code == 401:
-                    print("❌ Telegram Token is invalid. Polling stopped.")
+                    logger.error("Telegram token invalid. Polling stopped")
                     break
-        except Exception as e:
-            print(f"⚠️ Telegram polling error: {e}")
-        
+        except Exception as exc:
+            logger.warning("Telegram polling error: %s", exc)
+
         await asyncio.sleep(3)
 
 
@@ -731,9 +723,14 @@ async def telegram_webhook(
     request: Request,
     session: Session = Depends(get_session),
 ):
+    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+    if not TELEGRAM_WEBHOOK_SECRET or received_secret != TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook secret")
+
     try:
         payload = await request.json()
-    except Exception:
+    except Exception as exc:
+        logger.warning("Invalid Telegram webhook payload: %s", exc)
         return {"status": "ignored"}
 
     normalized = normalize_telegram_message(payload)
@@ -750,8 +747,57 @@ async def telegram_webhook(
     if config and not config.auto_reply_enabled:
         return {"status": "auto_reply_disabled"}
 
-    await message_queue.publish(normalized)
-    return {"status": "queued", "message_id": normalized.external_message_id}
+    try:
+        process_pipeline_message(normalized, session)
+
+        response_text = await process_telegram_message(
+            session=session,
+            user_id=normalized.user_id,
+            text=normalized.text,
+            external_message_id=normalized.external_message_id,
+            source="telegram",
+        )
+        if normalized.external_chat_id:
+            await send_telegram_message(int(normalized.external_chat_id), response_text)
+    except Exception as exc:
+        logger.exception("Telegram processing failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Telegram processing failed") from exc
+
+    return {"status": "processed", "message_id": normalized.external_message_id}
+
+
+@app.get("/me/telegram/overview")
+def get_me_telegram_overview(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    user_key = current_user.username
+    telegram_messages = session.exec(
+        select(InboundMessage)
+        .where(InboundMessage.user_id == user_key, InboundMessage.source == "telegram")
+        .order_by(InboundMessage.created_at.desc())
+        .limit(30)
+    ).all()
+
+    telegram_tasks = session.exec(
+        select(Task)
+        .where(Task.user_id == user_key, Task.source == "telegram")
+        .order_by(Task.created_at.desc())
+        .limit(30)
+    ).all()
+
+    telegram_memories = session.exec(
+        select(Memory)
+        .where(Memory.user_id == user_key, Memory.source == "telegram")
+        .order_by(Memory.created_at.desc())
+        .limit(30)
+    ).all()
+
+    return {
+        "messages": telegram_messages,
+        "tasks": telegram_tasks,
+        "memories": telegram_memories,
+    }
 
 
 # =========================

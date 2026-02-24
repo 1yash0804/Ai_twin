@@ -31,5 +31,6 @@ def normalize_telegram_message(payload: dict) -> NormalizedMessage | None:
         metadata={
             "sender_name": sender.get("first_name", "Friend"),
             "chat_type": chat.get("type", "private"),
+            "raw_payload": payload,
         },
     )
