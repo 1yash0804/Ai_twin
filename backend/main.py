@@ -83,12 +83,14 @@ async def lifespan(app: FastAPI):
     print("Database connected & Tables created")
 
     worker_task = asyncio.create_task(pipeline_worker_loop())
+    polling_task = asyncio.create_task(telegram_polling_loop())
     try:
         yield
     finally:
         worker_task.cancel()
+        polling_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await worker_task
+            await asyncio.gather(worker_task, polling_task)
 
 
 app = FastAPI(title="AI Twin Backend", lifespan=lifespan)
@@ -693,6 +695,35 @@ async def pipeline_worker_loop():
                     await send_telegram_message(int(msg.external_chat_id), response_text)
         except Exception as exc:
             print(f"❌ Pipeline worker failure: {exc}")
+
+
+async def telegram_polling_loop():
+    """Continuously polls Telegram for new messages (Local Dev alternative to webhooks)."""
+    offset = 0
+    print("🤖 Telegram polling started...")
+    
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{TELEGRAM_API_URL}/getUpdates", params={"offset": offset, "timeout": 30})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for update in data.get("result", []):
+                        offset = update["update_id"] + 1
+                        
+                        # Process just like a webhook
+                        normalized = normalize_telegram_message(update)
+                        if normalized:
+                            print(f"📥 Telegram message received: {normalized.text}")
+                            await message_queue.publish(normalized)
+                            
+                elif resp.status_code == 401:
+                    print("❌ Telegram Token is invalid. Polling stopped.")
+                    break
+        except Exception as e:
+            print(f"⚠️ Telegram polling error: {e}")
+        
+        await asyncio.sleep(3)
 
 
 @app.post("/webhook/telegram")

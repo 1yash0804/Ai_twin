@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
-from langchain_huggingface import HuggingFaceEmbeddings 
+from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 
 load_dotenv()
 

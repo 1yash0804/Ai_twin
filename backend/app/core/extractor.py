@@ -33,6 +33,10 @@ class AnalysisResult(BaseModel):
     facts: List[ExtractedFact] = []
 
 # ================= CORE LOGIC =================
+from sqlmodel import Session, create_engine
+from app.models import Task, Memory
+from app.database import engine
+
 def extract_and_save(user_id: str, message_text: str, source: str = "chat"):
     """
     The main function called by BackgroundTasks.
@@ -47,36 +51,52 @@ def extract_and_save(user_id: str, message_text: str, source: str = "chat"):
         print(f"❌ Extraction failed: {e}")
         return
 
-    # 2. Save Tasks to SQLite
-    if extraction.tasks:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        for task in extraction.tasks:
-            print(f"   📝 Found Task: {task.description} (Due: {task.due_date})")
-            cursor.execute(
-                """
-                INSERT INTO tasks (user_id, description, status, due_date, source, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    user_id,
-                    task.description,
-                    "pending",
-                    task.due_date,
-                    source,
-                    datetime.now()
+    # 2. Save to DB using SQLModel Session
+    with Session(engine) as session:
+        # Save Tasks
+        if extraction.tasks:
+            for task in extraction.tasks:
+                print(f"   📝 Found Task: {task.description} (Due: {task.due_date})")
+                new_task = Task(
+                    user_id=user_id,
+                    description=task.description,
+                    status="pending",
+                    due_date=task.due_date,
+                    source=source
                 )
-            )
-        conn.commit()
-        conn.close()
+                session.add(new_task)
 
-    # 3. Save Facts to Pinecone (via your RAG pipeline)
-    if extraction.facts:
-        from app.core.rag import save_fact_to_pinecone
-        for fact in extraction.facts:
-            print(f"   🧠 Found Fact: {fact.content}")
-            fact_text = f"[{fact.category.upper()}] {fact.content}"
-            save_fact_to_pinecone(fact_text, source=source)
+        # Save Memories (Facts)
+        if extraction.facts:
+            from app.core.vector_store import get_vector_store
+            vector_store = get_vector_store()
+            
+            for fact in extraction.facts:
+                print(f"   🧠 Found Fact: {fact.content}")
+                fact_text = f"[{fact.category.upper()}] {fact.content}"
+                
+                # Save to SQL for the dashboard
+                new_memory = Memory(
+                    user_id=user_id,
+                    text=fact_text
+                )
+                session.add(new_memory)
+                session.commit() # Commit to get the ID if needed
+                
+                # Save to Vector Store (Pinecone)
+                if vector_store:
+                    metadata = {
+                        "user_id": user_id,
+                        "source": source,
+                        "category": fact.category,
+                        "timestamp": datetime.now().timestamp()
+                    }
+                    try:
+                        vector_store.add_texts(texts=[fact_text], metadatas=[metadata])
+                    except Exception as ve:
+                        print(f"   ⚠️ Vector store save failed: {ve}")
+
+        session.commit()
 
 def analyze_text_with_llm(text: str) -> AnalysisResult:
     """
