@@ -285,7 +285,7 @@ class SignupOtpVerify(BaseModel):
     otp: str
 
 
-def send_otp_email(to_email: str, otp: str):
+def send_otp_email(to_email: str, otp: str) -> tuple[bool, str | None]:
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER")
@@ -293,8 +293,7 @@ def send_otp_email(to_email: str, otp: str):
     smtp_from = os.getenv("SMTP_FROM", smtp_user or "no-reply@aitwin.local")
 
     if not smtp_host or not smtp_user or not smtp_password:
-        print(f"⚠️ SMTP is not configured. OTP for {to_email}: {otp}")
-        return
+        return False, "SMTP is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD."
 
     msg = EmailMessage()
     msg["Subject"] = "Your AI Twin verification code"
@@ -302,10 +301,24 @@ def send_otp_email(to_email: str, otp: str):
     msg["To"] = to_email
     msg.set_content(f"Your OTP for AI Twin signup is: {otp}. It expires in 10 minutes.")
 
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
+    use_ssl = smtp_port == 465
+    try:
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
+                server.ehlo()
+                if os.getenv("SMTP_USE_STARTTLS", "true").lower() == "true":
+                    server.starttls()
+                    server.ehlo()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        return True, None
+    except Exception as exc:
+        logger.exception("Failed to send OTP email to %s", to_email)
+        return False, str(exc)
 
 
 @app.post("/auth/request-signup-otp")
@@ -334,7 +347,11 @@ def request_signup_otp(
         "expires_at": datetime.utcnow() + timedelta(minutes=10),
     }
 
-    send_otp_email(payload.email, otp)
+    sent, error_message = send_otp_email(payload.email, otp)
+    if not sent:
+        pending_signup_otps.pop(payload.email, None)
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {error_message}")
+
     return {"status": "otp_sent", "email": payload.email}
 
 
