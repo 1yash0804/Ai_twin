@@ -2,11 +2,9 @@ import json
 import re
 from sqlmodel import Session
 
-from app.core.extractor import extract_and_save
 from app.models import (
     Commitment,
     DeadlineInference,
-    ExtractedTaskRecord,
     InboundMessage,
     PipelineRun,
 )
@@ -38,23 +36,6 @@ def _infer_deadline(text: str) -> tuple[str | None, float | None]:
     return None, None
 
 
-def _extract_tasks(text: str) -> tuple[list[str], float]:
-    lowered = text.lower()
-    tasks: list[str] = []
-
-    if "remind me to" in lowered:
-        tasks.append(text)
-    if "need to" in lowered:
-        tasks.append(text)
-    if "todo" in lowered:
-        tasks.append(text)
-
-    if not tasks:
-        return [], 0.15
-
-    return tasks, 0.75
-
-
 def _extract_memories(text: str) -> list[str]:
     lowered = text.lower()
     if "my " in lowered or "i like" in lowered or "i prefer" in lowered:
@@ -65,7 +46,8 @@ def _extract_memories(text: str) -> list[str]:
 def process_pipeline_message(message: NormalizedMessage, session: Session) -> PipelineResult:
     commitment_detected, commitment_confidence = _detect_commitment(message.text)
     inferred_deadline, deadline_confidence = _infer_deadline(message.text)
-    extracted_tasks, task_confidence = _extract_tasks(message.text)
+    extracted_tasks: list[str] = []
+    task_confidence = 0.0
     extracted_memories = _extract_memories(message.text)
 
     result = PipelineResult(
@@ -82,12 +64,13 @@ def process_pipeline_message(message: NormalizedMessage, session: Session) -> Pi
         score_priority=max(commitment_confidence, task_confidence),
     )
 
+    raw_payload = message.metadata.get("raw_payload", message.metadata)
     inbound = InboundMessage(
         organization_id=message.organization_id,
         user_id=message.user_id,
         source=message.source,
         external_message_id=message.external_message_id,
-        raw_payload=json.dumps(message.metadata),
+        raw_payload=json.dumps(raw_payload),
         normalized_payload=message.model_dump_json(),
         status="processed",
     )
@@ -114,17 +97,6 @@ def process_pipeline_message(message: NormalizedMessage, session: Session) -> Pi
         )
     )
 
-    for task in extracted_tasks:
-        session.add(
-            ExtractedTaskRecord(
-                organization_id=message.organization_id,
-                user_id=message.user_id,
-                message_id=result.message_id,
-                description=task,
-                confidence_score=result.task_extraction_confidence_score,
-            )
-        )
-
     session.add(
         PipelineRun(
             organization_id=message.organization_id,
@@ -136,14 +108,4 @@ def process_pipeline_message(message: NormalizedMessage, session: Session) -> Pi
     )
 
     session.commit()
-
-    try:
-        extract_and_save(
-            user_id=message.user_id,
-            message_text=message.text,
-            source=f"{message.source}:{message.external_user_id}",
-        )
-    except Exception as exc:
-        print(f"⚠️ Extractor fallback failed: {exc}")
-
     return result
