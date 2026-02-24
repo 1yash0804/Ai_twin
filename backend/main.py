@@ -159,7 +159,7 @@ async def get_current_user(
 # =========================
 @app.get("/health")
 def health_check():
-    return {"status": "active", "mode": "hybrid_brain (Groq + Ollama)"}
+    return {"status": "active", "mode": "groq"}
 
 
 
@@ -180,7 +180,6 @@ def setup_requirements():
         },
         "llm": {
             "groq_api_key": bool(os.getenv("GROQ_API_KEY")),
-            "ollama_expected_local": True,
         },
         "extraction": {
             "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
@@ -396,19 +395,7 @@ def chat_with_ai(
                 "used_model": "cache ⚡",
             }
 
-    if intent in ["coding", "factual"]:
-        selected_model = "general"
-        adapter = None
-    elif intent == "personal":
-        selected_model = "local"
-        adapter = "phi3"
-    else:
-        selected_model = "local"
-        adapter = "phi3"
-
-    if request.model_type != "general":
-        selected_model = request.model_type
-        adapter = request.adapter_name
+    selected_model = "general"
 
     context_block = memory.build_context(request.query)
 
@@ -417,7 +404,7 @@ def chat_with_ai(
         context=[],
         history=[],
         model_type=selected_model,
-        adapter_name=adapter,
+        adapter_name=None,
         system_context=context_block,
     )
 
