@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CheckSquare, Activity, Brain, Settings } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Activity, Brain, Settings, Send } from "lucide-react";
 
 const navItems = [
     { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
     { label: "Commitments", href: "/dashboard/tasks", icon: CheckSquare },
     { label: "Activity Log", href: "/dashboard/activity", icon: Activity },
     { label: "Client Memory", href: "/dashboard/memory", icon: Brain },
+    { label: "Telegram", href: "/dashboard/telegram", icon: Send },
     { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

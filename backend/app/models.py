@@ -24,6 +24,7 @@ class Memory(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: str
     text: str
+    source: str = Field(default="chat", index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class MemoryCreate(SQLModel):
@@ -44,9 +45,12 @@ class Task(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: str = Field(index=True)
+    title: Optional[str] = None
     description: str
     status: str = "pending"
     due_date: Optional[str] = None
+    priority: str = "medium"
+    confidence_score: float = 0.0
     source: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
