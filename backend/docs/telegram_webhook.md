@@ -47,13 +47,3 @@
 
 - Webhook auth is validated through the `X-Telegram-Bot-Api-Secret-Token` header.
 - Polling is disabled by default; enable only for fallback by setting `ENABLE_TELEGRAM_POLLING=true`.
-
-
-## Schema compatibility
-
-- On startup, the backend now applies backward-compatible SQLite `ALTER TABLE` patches for:
-  - `memory.source`
-  - `tasks.title`
-  - `tasks.priority`
-  - `tasks.confidence_score`
-- This prevents runtime failures when running against older `database.db` files created before Telegram integration.
