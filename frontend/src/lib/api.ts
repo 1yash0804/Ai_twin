@@ -27,6 +27,36 @@ export type ActivityItem = {
   status?: string;
 };
 
+export type TelegramMessage = {
+  id: number;
+  external_message_id: string;
+  source: string;
+  raw_payload: string;
+  created_at: string;
+};
+
+export type TelegramTask = {
+  id: number;
+  title?: string | null;
+  description: string;
+  due_date?: string | null;
+  priority: "low" | "medium" | "high";
+  confidence_score: number;
+  created_at: string;
+};
+
+export type TelegramMemory = {
+  id: number;
+  text: string;
+  created_at: string;
+};
+
+export type TelegramOverviewResponse = {
+  messages: TelegramMessage[];
+  tasks: TelegramTask[];
+  memories: TelegramMemory[];
+};
+
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const fallback = `Request failed with status ${response.status}`;
@@ -81,6 +111,15 @@ export async function fetchMeActivities(token: string): Promise<ActivityItem[]> 
   });
 
   return parseJson<ActivityItem[]>(response);
+}
+
+export async function fetchTelegramOverview(token: string): Promise<TelegramOverviewResponse> {
+  const response = await fetch(`${API_BASE_URL}/me/telegram/overview`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  return parseJson<TelegramOverviewResponse>(response);
 }
 
 export { API_BASE_URL };
