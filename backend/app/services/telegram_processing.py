@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
 
-from pydantic import BaseModel, Field
+from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, Field, ValidationError
 from sqlmodel import Session
 
 from app.core.llm import generate_answer, get_llm
@@ -31,19 +33,21 @@ class ExtractionEnvelope(BaseModel):
 
 
 async def _extract_structured_data(text: str) -> ExtractionEnvelope:
-    llm = get_llm(model_type="general", purpose="structured")
-    structured_llm = llm.with_structured_output(ExtractionEnvelope)
-
+    llm = get_llm(model_type="local", adapter_name="phi3")
     prompt = (
-        "Extract actionable tasks and durable memory from the message. "
-        "Only include clear commitments or enduring personal context. "
-        "Return strictly valid JSON matching the provided schema."
+        "Extract actionable tasks and long-term memory from the user message. "
+        "Return only valid JSON with this exact schema: "
+        "{\"tasks\":[{\"title\":str,\"description\":str,\"deadline\":str|null,\"priority\":\"low|medium|high\",\"confidence_score\":float}],"
+        "\"memories\":[{\"text\":str,\"memory_type\":\"preference|goal|personal_fact|commitment\",\"confidence_score\":float}]}."
     )
 
+    response = await llm.ainvoke([SystemMessage(content=prompt), HumanMessage(content=text)])
+
     try:
-        return await structured_llm.ainvoke(f"{prompt}\n\nMessage: {text}")
-    except Exception as exc:
-        logger.warning("Structured extraction failed, using safe fallback: %s", exc)
+        payload = json.loads(response.content)
+        return ExtractionEnvelope.model_validate(payload)
+    except (json.JSONDecodeError, ValidationError) as exc:
+        logger.warning("Structured extraction fallback triggered: %s", exc)
         return ExtractionEnvelope()
 
 
@@ -105,8 +109,8 @@ async def process_telegram_message(
         query=text,
         context=[],
         history=[],
-        model_type="general",
-        adapter_name=None,
+        model_type="local",
+        adapter_name="phi3",
         system_context=context_block,
     )
 

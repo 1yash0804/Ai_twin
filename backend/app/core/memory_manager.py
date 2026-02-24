@@ -21,6 +21,8 @@ class MemoryManager:
         self.session = session
         self.vector_store = get_vector_store()
 
+    # --- 1. WRITE OPERATIONS ---
+    
     def add_message(self, role: str, content: str, source: str = "chat"):
         """
         Saves message to:
@@ -28,6 +30,7 @@ class MemoryManager:
         2. Redis (Short-term list, best effort)
         3. Vector DB (Searchable Memory, best effort)
         """
+        # A. Save to SQL (The "Hard Drive")
         memory_db = Memory(user_id=self.user_id, text=f"{role}: {content}", source=source)
         self.session.add(memory_db)
         self.session.commit()
