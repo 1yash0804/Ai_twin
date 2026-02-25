@@ -110,7 +110,7 @@ app.add_middleware(
 )
 
 pending_signup_otps: dict[str, dict[str, str | datetime]] = {}
-
+pending_login_otps: dict[str, dict] = {}
 # TELEGRAM HELPER
 
 async def send_telegram_message(chat_id: int, text: str):
@@ -121,7 +121,7 @@ async def send_telegram_message(chat_id: int, text: str):
     url = f"{TELEGRAM_API_URL}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=False) as client:
         await client.post(url, json=payload, timeout=20.0)
 
 
@@ -281,8 +281,23 @@ class SignupOtpRequest(BaseModel):
 
 
 class SignupOtpVerify(BaseModel):
+
     email: str
     otp: str
+
+class LoginOtpRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginOtpVerify(BaseModel):
+    username: str
+    otp: str
+
+class TaskCreate(BaseModel):
+    title: str
+    description: str
+    priority: str = "medium"
+    due_date: str | None = None
 
 
 def send_otp_email(to_email: str, otp: str) -> tuple[bool, str | None]:
@@ -353,6 +368,34 @@ def request_signup_otp(
         raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {error_message}")
 
     return {"status": "otp_sent", "email": payload.email}
+
+@app.post("/auth/request-login-otp")
+def request_login_otp(payload: LoginOtpRequest, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.username == payload.username)).first()
+    if not user or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    otp = f"{random.randint(0, 999999):06d}"
+    pending_login_otps[payload.username] = {"otp": otp, "expires_at": datetime.utcnow() + timedelta(minutes=10)}
+    sent, error_message = send_otp_email(user.email, otp)
+    if not sent:
+        pending_login_otps.pop(payload.username, None)
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {error_message}")
+    return {"status": "otp_sent", "username": payload.username}
+
+@app.post("/auth/verify-login-otp")
+def verify_login_otp(payload: LoginOtpVerify):
+    pending = pending_login_otps.get(payload.username)
+    if not pending:
+        raise HTTPException(status_code=400, detail="No pending login found for this user")
+    expires_at = pending.get("expires_at")
+    if not isinstance(expires_at, datetime) or datetime.utcnow() > expires_at:
+        pending_login_otps.pop(payload.username, None)
+        raise HTTPException(status_code=400, detail="OTP expired. Please try logging in again")
+    if str(pending["otp"]) != payload.otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+    pending_login_otps.pop(payload.username, None)
+    access_token = create_access_token(data={"sub": payload.username})
+    return {"access_token": access_token, "token_type": "bearer"}    
 
 
 @app.post("/auth/verify-signup-otp", response_model=User)
@@ -628,6 +671,27 @@ def get_me_tasks(
         select(Task).where(Task.user_id == current_user.username).order_by(Task.created_at.desc())
     ).all()
     return tasks
+    
+@app.post("/me/tasks")
+def create_manual_task(
+    payload: TaskCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    task = Task(
+        user_id=current_user.username,
+        title=payload.title,
+        description=payload.description,
+        priority=payload.priority,
+        due_date=payload.due_date,
+        status="pending",
+        source="manual",
+        confidence_score=1.0,
+    )
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task    
 
 
 @app.get("/me/activities")
@@ -750,21 +814,30 @@ async def telegram_webhook(
     try:
         process_pipeline_message(normalized, session)
 
+        metadata = normalized.metadata or {}
+        is_group = metadata.get("is_group", False)
+        is_mention = metadata.get("is_mention", False)
+        sender_name = metadata.get("sender_name", "Friend")
+        chat_title = metadata.get("chat_title", "")
+
+        silent = is_group and not is_mention
+
         response_text = await process_telegram_message(
             session=session,
             user_id=normalized.user_id,
             text=normalized.text,
             external_message_id=normalized.external_message_id,
             source="telegram",
+            silent=silent,
+            sender_name=sender_name,
+            chat_title=chat_title,
         )
-        if normalized.external_chat_id:
+
+        if not silent and response_text and normalized.external_chat_id:
             await send_telegram_message(int(normalized.external_chat_id), response_text)
     except Exception as exc:
         logger.exception("Telegram processing failed: %s", exc)
         raise HTTPException(status_code=500, detail="Telegram processing failed") from exc
-
-    return {"status": "processed", "message_id": normalized.external_message_id}
-
 
 @app.get("/me/telegram/overview")
 def get_me_telegram_overview(
