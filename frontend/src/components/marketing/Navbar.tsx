@@ -1,40 +1,92 @@
 "use client";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 
 export default function Navbar() {
+    const [scrolled, setScrolled] = useState(false);
+
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 12);
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
+    }, []);
+
     return (
-        <nav className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-white/80 backdrop-blur-md border-b border-slate-100">
-            <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                        </svg>
+        <nav className={`
+      fixed top-0 left-0 right-0 z-50 transition-all duration-300
+      ${scrolled
+                ? "bg-[#f4f2ee]/95 backdrop-blur-md shadow-sm shadow-stone-200/60 border-b border-stone-200"
+                : "bg-transparent border-b border-transparent"
+            }
+    `}>
+            <div className="max-w-6xl mx-auto px-6 lg:px-8 h-[62px] flex items-center justify-between gap-8">
+
+                {/* ── Logo ── */}
+                <Link href="/" className="flex items-center gap-3 shrink-0">
+                    {/* Pure wordmark — no icon box */}
+                    <div className="flex items-baseline gap-0.5">
+                        <span
+                            className="text-[22px] leading-none text-stone-900 tracking-tight"
+                            style={{ fontFamily: "'DM Serif Display', serif" }}
+                        >
+                            Twin
+                        </span>
+                        <span
+                            className="text-[22px] leading-none text-indigo-600 tracking-tight"
+                            style={{ fontFamily: "'DM Serif Display', serif" }}
+                        >
+                            Labs
+                        </span>
                     </div>
-                    <span className="font-bold text-xl text-slate-900 tracking-tight">TwinLabs</span>
-                </div>
-                <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-                    <Link href="#features" className="hover:text-slate-900 transition-colors">Product</Link>
-                    <Link href="#who" className="hover:text-slate-900 transition-colors">Users</Link>
-                    <Link href="#security" className="hover:text-slate-900 transition-colors">Security</Link>
+
+                </Link>
+
+                {/* ── Nav links ── */}
+                <div className="hidden md:flex items-center gap-1 flex-1 justify-center">
+                    {[
+                        { label: "Product", href: "#features" },
+                        { label: "Who it's for", href: "#who" },
+                        { label: "How it works", href: "#how" },
+                    ].map((l) => (
+                        <Link
+                            key={l.label}
+                            href={l.href}
+                            className="px-4 py-2 rounded-lg text-sm font-medium text-stone-500
+                hover:text-stone-900 hover:bg-stone-900/5
+                transition-all duration-150"
+                        >
+                            {l.label}
+                        </Link>
+                    ))}
                 </div>
 
-                <div className="flex items-center gap-4">
+                {/* ── Actions ── */}
+                <div className="flex items-center gap-2 shrink-0">
                     <Link
                         href="/login"
-                        className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors px-3 py-2"
+                        className="hidden sm:block px-4 py-2 rounded-lg text-sm font-medium
+              text-stone-500 hover:text-stone-900 hover:bg-stone-900/5
+              transition-all duration-150"
                     >
-                        Log In
+                        Log in
                     </Link>
-                    <motion.button
-                        whileHover={{ y: -2 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="bg-indigo-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
-                    >
-                        Join Early Access
-                    </motion.button>
+
+                    <div className="hidden sm:block w-px h-4 bg-stone-200" />
+
+                    <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}>
+                        <Link
+                            href="#join"
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg
+                bg-stone-900 text-white text-sm font-semibold
+                hover:bg-stone-800 transition-colors shadow-sm"
+                        >
+                            Get started
+                            <span className="text-stone-400 text-xs">→</span>
+                        </Link>
+                    </motion.div>
                 </div>
+
             </div>
         </nav>
     );
