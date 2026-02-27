@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import os
 from passlib.context import CryptContext
 from jose import jwt
 
-# ⚠️ SECURITY WARNING: In production, these move to a .env file!
-# For now, we keep them here to make it work immediately.
-SECRET_KEY = "super-secret-key-change-this-in-production"
+# Security-sensitive settings must come from environment variables.
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY is required. Set a strong random value in the environment.")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

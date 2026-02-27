@@ -18,6 +18,10 @@ class User(UserBase, table=True):
 class UserCreate(UserBase):
     password: str
 
+
+class UserPublic(UserBase):
+    id: Optional[int] = None
+
 # ... (keep your existing imports and User class)
 
 class Memory(SQLModel, table=True):
