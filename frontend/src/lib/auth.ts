@@ -2,17 +2,17 @@ const TOKEN_KEY = "ai_twin_token";
 
 export function saveToken(token: string) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(TOKEN_KEY, token);
+  window.sessionStorage.setItem(TOKEN_KEY, token);
 }
 
 export function getToken() {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  return window.sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function clearToken() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TOKEN_KEY);
+  window.sessionStorage.removeItem(TOKEN_KEY);
 }
 
 export function getUsernameFromToken(token: string | null): string | null {

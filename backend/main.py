@@ -1,11 +1,12 @@
 import os
-import shutil
 import asyncio
-import random
+import secrets
+import hmac
 import smtplib
 import logging
 from email.message import EmailMessage
 from datetime import datetime, timedelta
+from collections import defaultdict
 import httpx
 
 from contextlib import asynccontextmanager
@@ -18,7 +19,6 @@ from fastapi import (
     UploadFile,
     File,
     Request,
-    BackgroundTasks,
 )
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +32,7 @@ from app.database import create_db_and_tables, get_session, engine
 from app.models import (
     User,
     UserCreate,
+    UserPublic,
     Memory,
     MemoryCreate,
     DocumentLog,
@@ -105,12 +106,32 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(","),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-pending_signup_otps: dict[str, dict[str, str | datetime]] = {}
+pending_signup_otps: dict[str, dict] = {}
 pending_login_otps: dict[str, dict] = {}
+otp_request_tracker: dict[str, list[datetime]] = defaultdict(list)
+
+OTP_EXPIRY_MINUTES = 10
+OTP_MAX_VERIFY_ATTEMPTS = 5
+OTP_RATE_LIMIT_WINDOW_SECONDS = 300
+OTP_RATE_LIMIT_MAX_REQUESTS = 5
+MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10MB
+ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".txt"}
+ALLOWED_UPLOAD_CONTENT_TYPES = {"application/pdf", "text/plain"}
+
+
+def enforce_otp_rate_limit(identifier: str):
+    now = datetime.utcnow()
+    window_start = now - timedelta(seconds=OTP_RATE_LIMIT_WINDOW_SECONDS)
+    recent = [ts for ts in otp_request_tracker.get(identifier, []) if ts > window_start]
+    if len(recent) >= OTP_RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(status_code=429, detail="Too many OTP requests. Please try again later")
+    recent.append(now)
+    otp_request_tracker[identifier] = recent
+
 # TELEGRAM HELPER
 
 async def send_telegram_message(chat_id: int, text: str):
@@ -121,7 +142,7 @@ async def send_telegram_message(chat_id: int, text: str):
     url = f"{TELEGRAM_API_URL}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient() as client:
         await client.post(url, json=payload, timeout=20.0)
 
 
@@ -171,7 +192,7 @@ def setup_requirements():
         "backend": {
             "secret_key": bool(os.getenv("SECRET_KEY")),
             "database_url": bool(os.getenv("DATABASE_URL")),
-            "cors_allow_origins": os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"),
+            "cors_allow_origins_configured": bool(os.getenv("CORS_ALLOW_ORIGINS")),
         },
         "auth_otp": {
             "smtp_host": bool(os.getenv("SMTP_HOST")),
@@ -182,12 +203,12 @@ def setup_requirements():
             "groq_api_key": bool(os.getenv("GROQ_API_KEY")),
         },
         "extraction": {
-            "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+            "redis_configured": bool(os.getenv("REDIS_URL")),
             "pinecone_api_key": bool(os.getenv("PINECONE_API_KEY")),
-            "pinecone_index": os.getenv("PINECONE_INDEX", "aitwin"),
+            "pinecone_index_configured": bool(os.getenv("PINECONE_INDEX")),
         },
     }
-@app.post("/users/", response_model=User)
+@app.post("/users/", response_model=UserPublic)
 def create_user(
     user_input: UserCreate,
     session: Session = Depends(get_session),
@@ -341,6 +362,7 @@ def request_signup_otp(
     payload: SignupOtpRequest,
     session: Session = Depends(get_session),
 ):
+    enforce_otp_rate_limit(f"signup:{payload.email.lower()}")
     existing_username = session.exec(
         select(User).where(User.username == payload.username)
     ).first()
@@ -353,13 +375,14 @@ def request_signup_otp(
     if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    otp = f"{random.randint(0, 999999):06d}"
+    otp = f"{secrets.randbelow(1_000_000):06d}"
     pending_signup_otps[payload.email] = {
         "username": payload.username,
         "email": payload.email,
-        "password": payload.password,
+        "hashed_password": get_password_hash(payload.password),
+        "attempts": 0,
         "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=10),
+        "expires_at": datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES),
     }
 
     sent, error_message = send_otp_email(payload.email, otp)
@@ -371,11 +394,12 @@ def request_signup_otp(
 
 @app.post("/auth/request-login-otp")
 def request_login_otp(payload: LoginOtpRequest, session: Session = Depends(get_session)):
+    enforce_otp_rate_limit(f"login:{payload.username.lower()}")
     user = session.exec(select(User).where(User.username == payload.username)).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    otp = f"{random.randint(0, 999999):06d}"
-    pending_login_otps[payload.username] = {"otp": otp, "expires_at": datetime.utcnow() + timedelta(minutes=10)}
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    pending_login_otps[payload.username] = {"otp": otp, "expires_at": datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES), "attempts": 0}
     sent, error_message = send_otp_email(user.email, otp)
     if not sent:
         pending_login_otps.pop(payload.username, None)
@@ -391,14 +415,18 @@ def verify_login_otp(payload: LoginOtpVerify):
     if not isinstance(expires_at, datetime) or datetime.utcnow() > expires_at:
         pending_login_otps.pop(payload.username, None)
         raise HTTPException(status_code=400, detail="OTP expired. Please try logging in again")
-    if str(pending["otp"]) != payload.otp:
+    if int(pending.get("attempts", 0)) >= OTP_MAX_VERIFY_ATTEMPTS:
+        pending_login_otps.pop(payload.username, None)
+        raise HTTPException(status_code=429, detail="Too many invalid OTP attempts")
+    if not hmac.compare_digest(str(pending["otp"]), payload.otp):
+        pending["attempts"] = int(pending.get("attempts", 0)) + 1
         raise HTTPException(status_code=400, detail="Invalid OTP")
     pending_login_otps.pop(payload.username, None)
     access_token = create_access_token(data={"sub": payload.username})
     return {"access_token": access_token, "token_type": "bearer"}    
 
 
-@app.post("/auth/verify-signup-otp", response_model=User)
+@app.post("/auth/verify-signup-otp", response_model=UserPublic)
 def verify_signup_otp(
     payload: SignupOtpVerify,
     session: Session = Depends(get_session),
@@ -412,13 +440,17 @@ def verify_signup_otp(
         pending_signup_otps.pop(payload.email, None)
         raise HTTPException(status_code=400, detail="OTP expired. Please request a new one")
 
-    if str(pending["otp"]) != payload.otp:
+    if int(pending.get("attempts", 0)) >= OTP_MAX_VERIFY_ATTEMPTS:
+        pending_signup_otps.pop(payload.email, None)
+        raise HTTPException(status_code=429, detail="Too many invalid OTP attempts")
+    if not hmac.compare_digest(str(pending["otp"]), payload.otp):
+        pending["attempts"] = int(pending.get("attempts", 0)) + 1
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
     user_db = User(
         username=str(pending["username"]),
         email=str(pending["email"]),
-        hashed_password=get_password_hash(str(pending["password"])),
+        hashed_password=str(pending["hashed_password"]),
         is_active=True,
     )
 
@@ -882,20 +914,40 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    safe_name = Path(file.filename).name
+    safe_name = Path(file.filename or "").name
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid file name")
+
+    ext = Path(safe_name).suffix.lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported file type. Only PDF and TXT are allowed")
+
+    if file.content_type and file.content_type not in ALLOWED_UPLOAD_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported content type")
+
     file_location = f"temp_uploads/{current_user.id}_{safe_name}"
+    bytes_written = 0
 
     with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            bytes_written += len(chunk)
+            if bytes_written > MAX_UPLOAD_SIZE_BYTES:
+                buffer.close()
+                os.remove(file_location)
+                raise HTTPException(status_code=413, detail="File too large. Max allowed size is 10MB")
+            buffer.write(chunk)
 
     task = process_document_task.delay(
         file_path=file_location,
-        filename=file.filename,
+        filename=safe_name,
         user_id=current_user.id,
     )
 
     doc_db = DocumentLog(
-        filename=file.filename,
+        filename=safe_name,
         user_id=current_user.id,
     )
     session.add(doc_db)
@@ -905,7 +957,7 @@ async def upload_document(
     return {
         "status": "queued",
         "task_id": task.id,
-        "filename": file.filename,
+        "filename": safe_name,
         "message": "File processing started in background.",
     }
 
@@ -916,4 +968,4 @@ async def upload_document(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

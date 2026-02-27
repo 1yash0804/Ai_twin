@@ -22,7 +22,7 @@ class ResponseCache:
         raw_string = f"{user_id}:{intent}:{clean_query}"
         
         # Hash it to keep the Redis key short and secure
-        query_hash = hashlib.md5(raw_string.encode()).hexdigest()
+        query_hash = hashlib.sha256(raw_string.encode()).hexdigest()
         return f"cache:response:{query_hash}"
 
     def get_cached_response(self, user_id: str, query: str, intent: str):
