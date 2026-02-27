@@ -3,29 +3,111 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FadeUp } from "@/components/animation/MotionWrappers";
-import { MoreVertical, Filter, Download, Plus, X } from "lucide-react";
+import { Download, Plus, X, CheckCircle2, Clock, AlertCircle, ChevronDown, Zap } from "lucide-react";
 import { fetchMeTasks, createTask, type Task, type TaskCreatePayload } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
-const priorityStyles = {
-    high: "bg-rose-50 text-rose-600 border-rose-100",
-    medium: "bg-amber-50 text-amber-600 border-amber-100",
-    low: "bg-slate-50 text-slate-500 border-slate-100",
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const PRIORITY = {
+    high: {
+        pill: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20",
+        dot: "bg-rose-500",
+        label: "High",
+    },
+    medium: {
+        pill: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
+        dot: "bg-amber-500",
+        label: "Medium",
+    },
+    low: {
+        pill: "bg-stone-100 text-stone-600 border-stone-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700",
+        dot: "bg-stone-400 dark:bg-zinc-500",
+        label: "Low",
+    },
+} as const;
+
+const SOURCE = {
+    telegram: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
+    manual: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
+    chat: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
 };
 
-const sourceStyles: Record<string, string> = {
-    telegram: "bg-blue-50 text-blue-600",
-    manual: "bg-indigo-50 text-indigo-600",
-    chat: "bg-emerald-50 text-emerald-600",
+const STATUS = {
+    pending: {
+        pill: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
+        icon: <Clock size={11} />,
+    },
+    done: {
+        pill: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
+        icon: <CheckCircle2 size={11} />,
+    },
 };
+
+// ─── Confidence Bar ───────────────────────────────────────────────────────────
+
+function ConfidenceBar({ score }: { score: number }) {
+    const pct = Math.round(score * 100);
+    const color = pct >= 80 ? "bg-emerald-500" : pct >= 55 ? "bg-amber-500" : "bg-rose-500";
+    return (
+        <div className="flex items-center gap-2.5">
+            <div className="flex-1 h-1.5 bg-stone-100 dark:bg-zinc-800 rounded-full overflow-hidden max-w-[64px]">
+                <div
+                    className={`h-full rounded-full ${color} transition-all duration-700`}
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
+            <span className="text-[10px] font-bold text-stone-500 dark:text-zinc-400 tabular-nums">{pct}%</span>
+        </div>
+    );
+}
+
+// ─── Skeleton Row ─────────────────────────────────────────────────────────────
+
+function SkeletonRow() {
+    return (
+        <tr className="border-b border-stone-100 dark:border-zinc-800/60">
+            {[...Array(7)].map((_, i) => (
+                <td key={i} className="px-6 py-5">
+                    <div className="h-4 bg-stone-100 dark:bg-zinc-800 rounded animate-pulse"
+                        style={{ width: `${40 + i * 8}%` }} />
+                </td>
+            ))}
+        </tr>
+    );
+}
+
+// ─── Input field ─────────────────────────────────────────────────────────────
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div className="space-y-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 dark:text-zinc-500">
+                {label}
+            </label>
+            {children}
+        </div>
+    );
+}
+
+const inputCls = `
+  w-full rounded-xl px-4 py-3 text-sm font-medium outline-none
+  border transition-colors duration-150
+  bg-stone-50  border-stone-200  text-stone-900  placeholder-stone-400
+  dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100 dark:placeholder-zinc-500
+  focus:border-indigo-500 dark:focus:border-indigo-500
+`;
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TasksPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
+    const [filter, setFilter] = useState<"all" | "pending" | "done">("all");
 
-    // New task form state
+    // Form state
     const [newTitle, setNewTitle] = useState("");
     const [newDescription, setNewDescription] = useState("");
     const [newPriority, setNewPriority] = useState<"low" | "medium" | "high">("medium");
@@ -34,194 +116,259 @@ export default function TasksPage() {
     const [submitError, setSubmitError] = useState<string | null>(null);
 
     const loadTasks = async () => {
-        setLoading(true);
-        setError(null);
+        setLoading(true); setError(null);
         try {
             const token = getToken();
             if (!token) throw new Error("Not authenticated");
-            const data = await fetchMeTasks(token);
-            setTasks(data);
+            setTasks(await fetchMeTasks(token));
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to load tasks");
-        } finally {
-            setLoading(false);
-        }
+        } finally { setLoading(false); }
     };
 
-    useEffect(() => {
-        loadTasks();
-    }, []);
+    useEffect(() => { loadTasks(); }, []);
 
-    const handleCreateTask = async (e: React.FormEvent) => {
+    const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitError(null);
-        setSubmitting(true);
+        setSubmitError(null); setSubmitting(true);
         try {
             const token = getToken();
             if (!token) throw new Error("Not authenticated");
-
             const payload: TaskCreatePayload = {
-                title: newTitle,
-                description: newDescription,
-                priority: newPriority,
-                due_date: newDueDate || null,
+                title: newTitle, description: newDescription,
+                priority: newPriority, due_date: newDueDate || null,
             };
-
             const created = await createTask(token, payload);
-            setTasks((prev) => [created, ...prev]);
+            setTasks(prev => [created, ...prev]);
             setShowModal(false);
-            setNewTitle("");
-            setNewDescription("");
-            setNewPriority("medium");
-            setNewDueDate("");
+            setNewTitle(""); setNewDescription(""); setNewPriority("medium"); setNewDueDate("");
         } catch (err) {
             setSubmitError(err instanceof Error ? err.message : "Failed to create task");
-        } finally {
-            setSubmitting(false);
-        }
+        } finally { setSubmitting(false); }
     };
 
-    const confidencePct = (score: number) => Math.round(score * 100);
+    const shown = tasks.filter(t =>
+        filter === "all" ? true : t.status === filter
+    );
+
+    const pendingCount = tasks.filter(t => t.status === "pending").length;
+    const doneCount = tasks.filter(t => t.status === "done").length;
 
     return (
-        <div className="p-10 space-y-10 bg-slate-50/50 min-h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <FadeUp>
-                    <div className="space-y-2">
-                        <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Commitments</h1>
-                        <p className="text-base text-slate-500 font-medium">
-                            Manage tasks and obligations extracted from chat.
+        <div className="min-h-full bg-stone-50 dark:bg-zinc-950 p-6 lg:p-8 space-y-7 transition-colors duration-200">
+
+            {/* ── Header ── */}
+            <FadeUp>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                        <h1 className="text-3xl font-extrabold tracking-tight text-stone-900 dark:text-white">
+                            Commitments
+                        </h1>
+                        <p className="text-sm font-medium text-stone-500 dark:text-zinc-400 mt-1.5">
+                            Tasks and obligations extracted from your conversations
                         </p>
                     </div>
-                </FadeUp>
-                <div className="flex gap-4">
-                    <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm">
-                        <Download size={20} />
-                    </button>
-                    <button
-                        onClick={() => setShowModal(true)}
-                        className="flex items-center gap-2.5 px-6 py-3.5 bg-indigo-600 text-white font-bold rounded-2xl text-sm hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-600/20"
-                    >
-                        <Plus size={20} />
-                        Add Task
-                    </button>
-                </div>
-            </div>
 
-            <FadeUp delay={0.1}>
-                <div className="bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm shadow-slate-200/50">
-                    {/* Table header bar */}
-                    <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
-                        <div className="flex items-center gap-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <span className="flex items-center gap-2">
-                                Items <span className="text-slate-900">{tasks.length}</span>
-                            </span>
-                        </div>
-                        <button className="flex items-center gap-2.5 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 hover:border-slate-300 transition-all">
-                            <Filter size={14} className="text-slate-400" />
-                            Filter
+                    <div className="flex items-center gap-2.5">
+                        <button className="
+              p-2.5 rounded-xl transition-all shadow-sm
+              border border-stone-200 bg-white text-stone-400
+              hover:text-stone-700 hover:border-stone-300
+              dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-500
+              dark:hover:text-zinc-200 dark:hover:border-zinc-700
+            ">
+                            <Download size={17} />
+                        </button>
+                        <button
+                            onClick={() => setShowModal(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold
+                bg-indigo-600 text-white hover:bg-indigo-700
+                shadow-lg shadow-indigo-500/25 transition-all"
+                        >
+                            <Plus size={16} />
+                            Add Task
                         </button>
                     </div>
+                </div>
+            </FadeUp>
 
-                    {/* Loading / error / empty states */}
+            {/* ── Summary chips ── */}
+            <FadeUp delay={0.06}>
+                <div className="flex items-center gap-3 flex-wrap">
+                    {[
+                        { id: "all", label: "All tasks", count: tasks.length },
+                        { id: "pending", label: "Pending", count: pendingCount },
+                        { id: "done", label: "Done", count: doneCount },
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setFilter(tab.id as typeof filter)}
+                            className={`
+                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold
+                border transition-all duration-150
+                ${filter === tab.id
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-500/20"
+                                    : "bg-white border-stone-200 text-stone-600 hover:border-stone-300 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700"
+                                }
+              `}
+                        >
+                            {tab.label}
+                            <span className={`
+                text-xs px-1.5 py-0.5 rounded-md font-bold
+                ${filter === tab.id
+                                    ? "bg-white/20 text-white"
+                                    : "bg-stone-100 text-stone-500 dark:bg-zinc-800 dark:text-zinc-400"
+                                }
+              `}>
+                                {tab.count}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            </FadeUp>
+
+            {/* ── Table ── */}
+            <FadeUp delay={0.1}>
+                <div className="rounded-2xl overflow-hidden border shadow-sm
+          border-stone-200 bg-white
+          dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-none">
+
+                    {/* Table header */}
+                    <div className="px-6 py-4 border-b flex items-center justify-between
+            border-stone-100 bg-stone-50/50
+            dark:border-zinc-800 dark:bg-zinc-900">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400 dark:text-zinc-500">
+                            {shown.length} {filter === "all" ? "total" : filter}
+                        </span>
+                        {error && (
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                                <AlertCircle size={13} /> {error}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Skeleton */}
                     {loading && (
-                        <div className="py-20 text-center text-sm font-semibold text-slate-400">
-                            Loading tasks...
-                        </div>
+                        <table className="w-full">
+                            <tbody>{[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}</tbody>
+                        </table>
                     )}
-                    {!loading && error && (
-                        <div className="py-20 text-center text-sm font-semibold text-rose-500">{error}</div>
-                    )}
+
+                    {/* Empty */}
                     {!loading && !error && tasks.length === 0 && (
-                        <div className="py-20 text-center text-sm font-semibold text-slate-400">
-                            No tasks yet. Create one or send a message via Telegram.
+                        <div className="py-20 text-center space-y-2">
+                            <div className="w-10 h-10 rounded-2xl bg-stone-100 dark:bg-zinc-800
+                flex items-center justify-center mx-auto">
+                                <Zap size={18} className="text-stone-300 dark:text-zinc-600" />
+                            </div>
+                            <p className="text-sm font-semibold text-stone-500 dark:text-zinc-400">No tasks yet</p>
+                            <p className="text-xs font-medium text-stone-400 dark:text-zinc-500">
+                                Create one or send a Telegram message to extract automatically
+                            </p>
                         </div>
                     )}
 
                     {/* Table */}
-                    {!loading && !error && tasks.length > 0 && (
+                    {!loading && !error && shown.length > 0 && (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full text-left">
                                 <thead>
-                                    <tr className="border-b border-slate-50 bg-slate-50/10">
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Task</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Source</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Due Date</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Priority</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Confidence</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
-                                        <th className="px-8 py-5 w-10"></th>
+                                    <tr className="border-b border-stone-100 dark:border-zinc-800/60">
+                                        {["Task", "Source", "Due Date", "Priority", "Confidence", "Status", ""].map(h => (
+                                            <th key={h} className="px-6 py-3.5 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400 dark:text-zinc-500">
+                                                {h}
+                                            </th>
+                                        ))}
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {tasks.map((task) => {
-                                        const pct = confidencePct(task.confidence_score);
+                                <tbody className="divide-y divide-stone-50 dark:divide-zinc-800/60">
+                                    {shown.map((task) => {
                                         const src = (task.source ?? "manual").toLowerCase();
+                                        const prio = PRIORITY[task.priority as keyof typeof PRIORITY] ?? PRIORITY.medium;
+                                        const stat = STATUS[task.status as keyof typeof STATUS] ?? STATUS.pending;
+                                        const srcCls = SOURCE[src as keyof typeof SOURCE] ?? SOURCE.manual;
+
                                         return (
-                                            <tr key={task.id} className="hover:bg-slate-50 transition-all group cursor-pointer">
-                                                <td className="px-8 py-6">
-                                                    <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                            <tr key={task.id}
+                                                className="group hover:bg-stone-50/80 dark:hover:bg-zinc-800/40 transition-colors duration-150 cursor-pointer">
+
+                                                {/* Task title + description */}
+                                                <td className="px-6 py-4 max-w-xs">
+                                                    <p className="text-sm font-bold text-stone-900 dark:text-zinc-100
+                            group-hover:text-indigo-600 dark:group-hover:text-indigo-400
+                            transition-colors leading-snug">
                                                         {task.title ?? task.description}
                                                     </p>
-                                                    {task.title && (
-                                                        <p className="text-xs text-slate-400 font-medium mt-1 line-clamp-1">
+                                                    {task.title && task.description && (
+                                                        <p className="text-xs font-medium text-stone-400 dark:text-zinc-500 mt-1 line-clamp-1">
                                                             {task.description}
                                                         </p>
                                                     )}
-                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">
-                                                        <span className="bg-slate-100 px-1.5 py-0.5 rounded">#{task.id}</span>
-                                                    </p>
+                                                    <span className="inline-block mt-1.5 text-[9px] font-bold uppercase tracking-widest
+                            px-1.5 py-0.5 rounded bg-stone-100 text-stone-400
+                            dark:bg-zinc-800 dark:text-zinc-600">
+                                                        #{task.id}
+                                                    </span>
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    <span
-                                                        className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${sourceStyles[src] ?? "bg-slate-50 text-slate-500"
-                                                            }`}
-                                                    >
+
+                                                {/* Source */}
+                                                <td className="px-6 py-4">
+                                                    <span className={`
+                            px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-widest
+                            ${srcCls}
+                          `}>
                                                         {src}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    <span className="text-sm font-bold text-slate-500 uppercase tracking-tight">
-                                                        {task.due_date ?? "—"}
+
+                                                {/* Due date */}
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm font-semibold text-stone-600 dark:text-zinc-300">
+                                                        {task.due_date ?? <span className="text-stone-300 dark:text-zinc-600">—</span>}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    <span
-                                                        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${priorityStyles[task.priority] ?? priorityStyles.medium
-                                                            }`}
-                                                    >
-                                                        {task.priority}
+
+                                                {/* Priority */}
+                                                <td className="px-6 py-4">
+                                                    <span className={`
+                            flex items-center gap-1.5 w-fit
+                            px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-widest
+                            ${prio.pill}
+                          `}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${prio.dot}`} />
+                                                        {prio.label}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    {task.source === "manual" ? (
-                                                        <span className="text-[10px] font-black text-slate-300 uppercase">—</span>
-                                                    ) : (
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full max-w-[80px] overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.3)]"
-                                                                    style={{ width: `${pct}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-[10px] font-black text-slate-400">{pct}%</span>
-                                                        </div>
-                                                    )}
+
+                                                {/* Confidence */}
+                                                <td className="px-6 py-4">
+                                                    {task.source === "manual"
+                                                        ? <span className="text-[10px] font-bold text-stone-300 dark:text-zinc-700">—</span>
+                                                        : <ConfidenceBar score={task.confidence_score} />
+                                                    }
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    <span
-                                                        className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${task.status === "pending"
-                                                                ? "bg-amber-50 text-amber-600"
-                                                                : "bg-emerald-50 text-emerald-600"
-                                                            }`}
-                                                    >
+
+                                                {/* Status */}
+                                                <td className="px-6 py-4">
+                                                    <span className={`
+                            flex items-center gap-1.5 w-fit
+                            px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-widest
+                            ${stat.pill}
+                          `}>
+                                                        {stat.icon}
                                                         {task.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-6 text-right">
-                                                    <button className="p-2 rounded-xl hover:bg-white hover:shadow-sm text-slate-300 hover:text-slate-900 transition-all">
-                                                        <MoreVertical size={18} strokeWidth={2.5} />
+
+                                                {/* Actions */}
+                                                <td className="px-6 py-4 text-right">
+                                                    <button className="
+                            p-1.5 rounded-lg opacity-0 group-hover:opacity-100
+                            transition-all duration-150
+                            text-stone-400 hover:text-stone-700 hover:bg-stone-100
+                            dark:text-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800
+                          ">
+                                                        <ChevronDown size={15} strokeWidth={2.5} />
                                                     </button>
                                                 </td>
                                             </tr>
@@ -234,107 +381,123 @@ export default function TasksPage() {
                 </div>
             </FadeUp>
 
-            {/* Add Task Modal */}
+            {/* ── Add Task Modal ── */}
             <AnimatePresence>
                 {showModal && (
                     <motion.div
-                        key="modal-backdrop"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+                        key="backdrop"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-6
+              bg-stone-900/40 dark:bg-black/60 backdrop-blur-sm"
                         onClick={() => setShowModal(false)}
                     >
                         <motion.div
                             key="modal"
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            initial={{ opacity: 0, scale: 0.96, y: 16 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            className="w-full max-w-lg bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-slate-900/20"
-                            onClick={(e) => e.stopPropagation()}
+                            exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                            transition={{ type: "spring", stiffness: 320, damping: 28 }}
+                            className="w-full max-w-md rounded-2xl p-7 shadow-2xl
+                bg-white border border-stone-200
+                dark:bg-zinc-900 dark:border-zinc-800
+                dark:shadow-black/40"
+                            onClick={e => e.stopPropagation()}
                         >
-                            <div className="flex items-center justify-between mb-8">
-                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">New Task</h2>
+                            {/* Modal header */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-xl font-extrabold tracking-tight text-stone-900 dark:text-white">
+                                        New Task
+                                    </h2>
+                                    <p className="text-xs font-medium text-stone-400 dark:text-zinc-500 mt-0.5">
+                                        Manually add a commitment to track
+                                    </p>
+                                </div>
                                 <button
                                     onClick={() => setShowModal(false)}
-                                    className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all"
+                                    className="p-2 rounded-xl transition-colors
+                    text-stone-400 hover:text-stone-700 hover:bg-stone-100
+                    dark:text-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800"
                                 >
-                                    <X size={20} />
+                                    <X size={18} />
                                 </button>
                             </div>
 
-                            <form className="space-y-5" onSubmit={handleCreateTask}>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                                        Title
-                                    </label>
+                            <form className="space-y-4" onSubmit={handleCreate}>
+                                <Field label="Title">
                                     <input
                                         type="text"
                                         placeholder="Send proposal to client"
                                         value={newTitle}
-                                        onChange={(e) => setNewTitle(e.target.value)}
+                                        onChange={e => setNewTitle(e.target.value)}
                                         required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 outline-none focus:border-indigo-600 transition-colors text-slate-900 font-medium"
+                                        className={inputCls}
                                     />
-                                </div>
+                                </Field>
 
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                                        Description
-                                    </label>
+                                <Field label="Description">
                                     <textarea
                                         placeholder="Brief details about this task..."
                                         value={newDescription}
-                                        onChange={(e) => setNewDescription(e.target.value)}
+                                        onChange={e => setNewDescription(e.target.value)}
                                         required
                                         rows={3}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 outline-none focus:border-indigo-600 transition-colors text-slate-900 font-medium resize-none"
+                                        className={`${inputCls} resize-none`}
                                     />
-                                </div>
+                                </Field>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                                            Priority
-                                        </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Field label="Priority">
                                         <select
                                             value={newPriority}
-                                            onChange={(e) => setNewPriority(e.target.value as "low" | "medium" | "high")}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 outline-none focus:border-indigo-600 transition-colors text-slate-900 font-medium"
+                                            onChange={e => setNewPriority(e.target.value as "low" | "medium" | "high")}
+                                            className={inputCls}
                                         >
                                             <option value="low">Low</option>
                                             <option value="medium">Medium</option>
                                             <option value="high">High</option>
                                         </select>
-                                    </div>
+                                    </Field>
 
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                                            Due Date
-                                        </label>
+                                    <Field label="Due Date">
                                         <input
                                             type="date"
                                             value={newDueDate}
-                                            onChange={(e) => setNewDueDate(e.target.value)}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 outline-none focus:border-indigo-600 transition-colors text-slate-900 font-medium"
+                                            onChange={e => setNewDueDate(e.target.value)}
+                                            className={inputCls}
                                         />
-                                    </div>
+                                    </Field>
                                 </div>
 
                                 {submitError && (
-                                    <p className="text-sm font-semibold text-rose-600">{submitError}</p>
+                                    <p className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                                        <AlertCircle size={12} /> {submitError}
+                                    </p>
                                 )}
 
-                                <motion.button
-                                    type="submit"
-                                    disabled={submitting}
-                                    whileHover={{ y: -2 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-                                >
-                                    {submitting ? "Creating..." : "Create Task"}
-                                </motion.button>
+                                <div className="flex gap-2.5 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowModal(false)}
+                                        className="flex-1 py-3 rounded-xl text-sm font-bold transition-colors
+                      border border-stone-200 text-stone-600 hover:bg-stone-50
+                      dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <motion.button
+                                        type="submit"
+                                        disabled={submitting}
+                                        whileHover={{ y: -1 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        className="flex-1 py-3 rounded-xl text-sm font-bold transition-colors
+                      bg-indigo-600 text-white hover:bg-indigo-700
+                      shadow-lg shadow-indigo-500/25
+                      disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                        {submitting ? "Creating…" : "Create Task"}
+                                    </motion.button>
+                                </div>
                             </form>
                         </motion.div>
                     </motion.div>

@@ -14,7 +14,6 @@ export default function Navbar() {
                     </div>
                     <span className="font-bold text-xl text-slate-900 tracking-tight">TwinLabs</span>
                 </div>
-
                 <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
                     <Link href="#features" className="hover:text-slate-900 transition-colors">Product</Link>
                     <Link href="#who" className="hover:text-slate-900 transition-colors">Users</Link>
