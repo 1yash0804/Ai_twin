@@ -12,6 +12,11 @@ class UserBase(SQLModel):
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     hashed_password: str 
+    bot_paused: bool = Field(default=False)
+    privacy_consent_at: Optional[datetime] = None
+    telegram_chat_id: Optional[str] = None
+    telegram_connect_token: Optional[str] = None
+    telegram_connect_token_at: Optional[datetime] = None
 
 # 3. The Input Schema (What the user sends in JSON)
 # It inherits username/email, but adds the 'plain' password.
@@ -92,7 +97,8 @@ class InboundMessage(SQLModel, table=True):
     normalized_payload: str
     status: str = "received"
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
+    purged_at: Optional[datetime] = None
+    raw_payload_purged: bool = Field(default=False)
 
 class Commitment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -133,3 +139,12 @@ class PipelineRun(SQLModel, table=True):
     status: str = "completed"
     stage_notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class UserPrivacyLog(SQLModel, table=True):
+    __tablename__ = "privacy_logs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True)
+    action: str  # "consent", "delete_all", "pause", "resume", "export"
+    ip_address: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)    

@@ -4,6 +4,7 @@ import secrets
 import hmac
 import smtplib
 import logging
+import secrets
 from email.message import EmailMessage
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -44,6 +45,7 @@ from app.models import (
     DeadlineInference,
     ExtractedTaskRecord,
     PipelineRun,
+    UserPrivacyLog,
 )
 from app.core.security import (
     get_password_hash,
@@ -61,7 +63,7 @@ from app.ingestion.gateway import normalize_telegram_message
 from app.services.telegram_processing import process_telegram_message
 from app.queue.in_memory import message_queue
 from app.pipeline.runner import process_pipeline_message
-
+from app.jobs.purge import start_purge_scheduler
 # =========================
 # CONFIG & SETUP
 # =========================
@@ -86,7 +88,7 @@ logger = logging.getLogger("ai_twin.telegram")
 async def lifespan(app: FastAPI):
     create_db_and_tables()
     print("Database connected & Tables created")
-
+    start_purge_scheduler() 
     worker_task = asyncio.create_task(pipeline_worker_loop())
     polling_task = asyncio.create_task(telegram_polling_loop()) if ENABLE_TELEGRAM_POLLING else None
     try:
@@ -832,6 +834,20 @@ async def telegram_webhook(
     normalized = normalize_telegram_message(payload)
     if not normalized:
         return {"status": "ignored"}
+    if normalized.text and normalized.text.strip().startswith("/"):
+        user = session.exec(
+            select(User).where(User.username == normalized.user_id)
+        ).first()
+        if user and normalized.external_chat_id:
+            handled = await handle_bot_command(
+                text=normalized.text.strip(),
+                chat_id=int(normalized.external_chat_id),
+                user=user,
+                session=session,
+            )
+            if handled:
+                return {"status": "command_handled"}
+
 
     config = session.exec(
         select(UserChannelConfig).where(
@@ -842,6 +858,13 @@ async def telegram_webhook(
 
     if config and not config.auto_reply_enabled:
         return {"status": "auto_reply_disabled"}
+
+    # Respect /pause command
+    paused_user = session.exec(
+        select(User).where(User.username == normalized.user_id)
+    ).first()
+    if paused_user and paused_user.bot_paused:
+        return {"status": "paused"}
 
     try:
         process_pipeline_message(normalized, session)
@@ -870,6 +893,137 @@ async def telegram_webhook(
     except Exception as exc:
         logger.exception("Telegram processing failed: %s", exc)
         raise HTTPException(status_code=500, detail="Telegram processing failed") from exc
+
+async def handle_bot_command(
+    text: str,
+    chat_id: int,
+    user: User,
+    session: Session,
+) -> bool:
+    """Returns True if it was a command and was handled."""
+    if text.startswith("/start"):
+        parts = text.split(" ", 1)
+        token = parts[1].strip() if len(parts) > 1 else None
+
+        if token:
+            linked_user = session.exec(
+                select(User).where(User.telegram_connect_token == token)
+            ).first()
+
+            if linked_user:
+                token_age = datetime.utcnow() - (linked_user.telegram_connect_token_at or datetime.utcnow())
+
+                if token_age.total_seconds() < 600:
+                    linked_user.telegram_chat_id = str(chat_id)
+                    linked_user.telegram_connect_token = None
+                    linked_user.telegram_connect_token_at = None
+                    session.add(linked_user)
+                    session.commit()
+                    await send_telegram_message(
+                        chat_id,
+                        "✅ Connected! TwinLabs is now active.\n\n"
+                        "I'll silently extract tasks and memories from your messages.\n\n"
+                        "Commands:\n"
+                        "/status — see your data\n"
+                        "/pause — stop processing\n"
+                        "/delete — wipe all data"
+                    )
+                else:
+                    await send_telegram_message(
+                        chat_id,
+                        "⚠️ This link expired. Go back to your dashboard and generate a new one."
+                    )
+            else:
+                await send_telegram_message(
+                    chat_id,
+                    "⚠️ Invalid link. Please generate a fresh one from your dashboard."
+                )
+        else:
+            # /start with no token — someone found the bot manually
+            await send_telegram_message(
+                chat_id,
+                "👋 Hi! I'm your TwinLabs bot.\n"
+                "Connect me from your dashboard at app.twinlabs.ai"
+            )
+        return True
+    if text == "/delete" or text == "/deleteall":
+        from sqlmodel import delete as sql_delete
+        session.exec(sql_delete(Task).where(Task.user_id == user.username))
+        session.exec(sql_delete(Memory).where(Memory.user_id == user.username))
+        
+        # Purge raw payloads immediately for this user
+        messages = session.exec(
+            select(InboundMessage).where(InboundMessage.user_id == user.username)
+        ).all()
+        for msg in messages:
+            msg.raw_payload = "[deleted by user]"
+            msg.raw_payload_purged = True
+            msg.purged_at = datetime.utcnow()
+            session.add(msg)
+        
+        # Log the action
+        log = UserPrivacyLog(
+            user_id=user.username,
+            action="delete_all",
+        )
+        session.add(log)
+        session.commit()
+
+        await send_telegram_message(
+            chat_id,
+            "✓ Done. All your tasks, memories, and message data have been "
+            "permanently deleted.\n\nYour account still exists. "
+            "Send any message to start fresh."
+        )
+        return True
+
+    if text == "/pause":
+        user.bot_paused = True
+        log = UserPrivacyLog(user_id=user.username, action="pause")
+        session.add(user)
+        session.add(log)
+        session.commit()
+        await send_telegram_message(
+            chat_id,
+            "⏸ Paused. I'll stop processing your messages.\n"
+            "Send /resume whenever you want me back."
+        )
+        return True
+
+    if text == "/resume":
+        user.bot_paused = False
+        log = UserPrivacyLog(user_id=user.username, action="resume")
+        session.add(user)
+        session.add(log)
+        session.commit()
+        await send_telegram_message(
+            chat_id,
+            "▶ Resumed. I'm back to extracting tasks and memories."
+        )
+        return True
+
+    if text == "/status":
+        task_count = len(session.exec(
+            select(Task).where(Task.user_id == user.username)
+        ).all())
+        memory_count = len(session.exec(
+            select(Memory).where(Memory.user_id == user.username)
+        ).all())
+        await send_telegram_message(
+            chat_id,
+            f"📊 Your TwinLabs data:\n"
+            f"• Tasks: {task_count}\n"
+            f"• Memories: {memory_count}\n"
+            f"• Bot: {'⏸ Paused' if user.bot_paused else '▶ Active'}\n\n"
+            f"Commands:\n"
+            f"/pause — stop processing\n"
+            f"/resume — restart processing\n"
+            f"/delete — wipe all your data\n"
+            f"/status — this message"
+        )
+        return True
+
+    return False  # not a recognised command        
 
 @app.get("/me/telegram/overview")
 def get_me_telegram_overview(
@@ -959,6 +1113,28 @@ async def upload_document(
         "task_id": task.id,
         "filename": safe_name,
         "message": "File processing started in background.",
+    }
+
+@app.get("/me/telegram/connect-link")
+def get_telegram_connect_link(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    # Generate a short-lived token tied to this user
+    token = secrets.token_urlsafe(16)
+    
+    # Store it temporarily (reuse pending_signup_otps pattern you already have)
+    # or add a telegram_connect_token field to User model
+    current_user.telegram_connect_token = token
+    current_user.telegram_connect_token_at = datetime.utcnow()
+    session.add(current_user)
+    session.commit()
+    
+    bot_username = os.getenv("TELEGRAM_BOT_USERNAME")  # e.g. "TwinLabsBot"
+    
+    return {
+        "link": f"https://t.me/{bot_username}?start={token}",
+        "expires_in": "10 minutes"
     }
 
 

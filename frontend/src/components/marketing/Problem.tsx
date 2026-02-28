@@ -6,25 +6,24 @@ const problems = [
         num: "01",
         title: "Approvals buried in 200 messages.",
         detail: "You scroll back 3 hours to find one \"yes\" from a client.",
-        icon: "📩",
+
     },
     {
         num: "02",
         title: "Deadlines lost in group chats.",
         detail: "Everyone assumed someone else was tracking it. Nobody was.",
-        icon: "💬",
+
     },
     {
         num: "03",
         title: "Follow-ups forgotten.",
         detail: "The client's waiting. You forgot. Trust erodes one missed message at a time.",
-        icon: "⏰",
+
     },
     {
         num: "04",
         title: "Mental overload from constant scanning.",
         detail: "Your brain becomes the system. It's not built for this.",
-        icon: "🧠",
     },
 ];
 
@@ -86,7 +85,7 @@ export default function Problem() {
                 ">
                                     {/* Number */}
                                     <span
-                                        className="text-[11px] font-bold text-stone-300 shrink-0 mt-1 w-6"
+                                        className="text-[25px] font-bold text-stone-300 shrink-0 mt-1 w-6"
                                         style={{ fontFamily: "'JetBrains Mono', monospace" }}
                                     >
                                         {p.num}
@@ -101,7 +100,6 @@ export default function Problem() {
                                     </div>
                                     {/* Emoji fades in on hover */}
                                     <span className="text-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
-                                        {p.icon}
                                     </span>
                                 </div>
                             </FadeUp>
@@ -120,7 +118,7 @@ export default function Problem() {
                                 className="text-2xl lg:text-3xl text-stone-600 leading-snug tracking-tight italic"
                                 style={{ fontFamily: "'DM Serif Display', serif" }}
                             >
-                                &ldquo;The information existed.<br />The system did not.&rdquo;
+                                &ldquo;The information existed.<br />BUT The system did not.&rdquo;
                             </p>
                         </div>
                     </FadeUp>

@@ -12,6 +12,7 @@ class ExtractedTask(BaseModel):
     description: str = Field(..., description="The actual task to be done")
     due_date: Optional[str] = Field(None, description="ISO date or natural language if mentioned")
     priority: str = Field("medium", description="low, medium, or high")
+    assigned_to: Optional[str] = Field(None, description="Name of person task is assigned to, or 'sender' if for the message sender")
 
 
 class ExtractedFact(BaseModel):
@@ -36,15 +37,17 @@ def extract_and_save(user_id: str, message_text: str, source: str = "chat"):
     with Session(engine) as session:
         if extraction.tasks:
             for task in extraction.tasks:
-                new_task = Task(
+               new_task = Task(
                     user_id=user_id,
+                    title=task.description,
                     description=task.description,
                     status="pending",
                     due_date=task.due_date,
                     priority=task.priority,
                     source=source,
+                    confidence_score=0.85,
                 )
-                session.add(new_task)
+            session.add(new_task)
 
         if extraction.facts:
             from app.core.vector_store import get_vector_store
@@ -75,10 +78,14 @@ def analyze_text_with_llm(text: str) -> AnalysisResult:
     structured_llm = llm.with_structured_output(AnalysisResult)
 
     prompt = (
-        "Analyze the message and extract two lists: tasks and permanent facts. "
-        "Return strictly valid JSON that matches the schema. "
+        "Analyze the message and extract tasks and permanent facts. "
+        "For each task, also identify who it is assigned to if mentioned. "
+        "Add an 'assigned_to' field — use the person's name if mentioned, "
+        "or 'sender' if the task is for the person who sent the message. "
+        "Always respond in English only. Translate everything to English. "
+        "Return strictly valid JSON matching the schema. "
         "If nothing is found, return empty arrays."
-    )
+)
 
     try:
         return structured_llm.invoke(f"{prompt}\n\nMessage: {text}")

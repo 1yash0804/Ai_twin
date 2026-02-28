@@ -9,7 +9,7 @@ import {
   Send, ArrowRight, CheckSquare, Brain,
   Zap, Clock, AlertCircle, RefreshCw,
 } from "lucide-react";
-
+import { TelegramConnectButton } from "@/components/dashboard/TelegramConnectButton";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTime(iso: string): string {
@@ -180,20 +180,22 @@ export default function TelegramDashboardPage() {
               Every message your bot receives gets processed here — tasks and memories are automatically extracted and stored for your AI twin.
             </p>
           </div>
-
-          <button
-            onClick={() => load(true)}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold
-              border border-stone-200 bg-white text-stone-600 shadow-sm
-              hover:border-stone-300 hover:text-stone-900
-              dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400
-              dark:hover:border-zinc-700 dark:hover:text-zinc-200
-              disabled:opacity-50 transition-all"
-          >
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            <TelegramConnectButton token={getToken() ?? ""} />
+            <button
+              onClick={() => load(true)}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold
+                border border-stone-200 bg-white text-stone-600 shadow-sm
+                hover:border-stone-300 hover:text-stone-900
+                dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400
+                dark:hover:border-zinc-700 dark:hover:text-zinc-200
+                disabled:opacity-50 transition-all"
+            >
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
         </div>
       </FadeUp>
 
