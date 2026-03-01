@@ -24,20 +24,30 @@ class ResponseCache:
         # Hash it to keep the Redis key short and secure
         query_hash = hashlib.sha256(raw_string.encode()).hexdigest()
         return f"cache:response:{query_hash}"
+def get_cached_response(self, user_id: str, query: str, intent: str):
+        if not self.redis:
+            return None
+        try:
+            key = self._generate_key(user_id, query, intent)
+            cached_data = self.redis.get(key)
+            if cached_data:
+                return json.loads(cached_data)
+            return None
+        except Exception:
+            return None
 
-    def get_cached_response(self, user_id: str, query: str, intent: str):
-        """
-        Check if we already have an answer.
-        """
-        key = self._generate_key(user_id, query, intent)
-        cached_data = self.redis.get(key)
-        
-        if cached_data:
-            # We found a saved answer! ⚡
-            return json.loads(cached_data)
-        return None
+def save_response(self, user_id: str, query: str, intent: str, response: str):
+        if not self.redis:
+            return
+        try:
+            key = self._generate_key(user_id, query, intent)
+            ttl = CACHE_TTL_FACTUAL if intent == "factual" else CACHE_TTL_CASUAL
+            data = {"response": response, "cached_at": "just_now", "intent": intent}
+            self.redis.setex(key, ttl, json.dumps(data))
+        except Exception:
+            pass
 
-    def save_response(self, user_id: str, query: str, intent: str, response: str):
+def save_response(self, user_id: str, query: str, intent: str, response: str):
         """
         Save the answer for next time.
         """

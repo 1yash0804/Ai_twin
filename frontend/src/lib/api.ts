@@ -248,4 +248,30 @@ export async function fetchTelegramOverview(token: string): Promise<TelegramOver
   return parseJson<TelegramOverviewResponse>(response);
 }
 
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ChatResponse = {
+  response: string;
+  intent: string;
+  used_model: string;
+};
+
+export async function chatWithTwin(
+  token: string,
+  query: string
+): Promise<ChatResponse> {
+  const response = await fetch(`${API_BASE_URL}/chat/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query, model_type: "general" }),
+  });
+  return parseJson<ChatResponse>(response);
+}
+
 export { API_BASE_URL };
