@@ -15,7 +15,7 @@ export function TelegramConnectButton({ token }: TelegramConnectButtonProps) {
     const handleConnect = async () => {
         setLoading(true);
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+            const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
             const res = await fetch(apiUrl + "/me/telegram/connect-link", {
                 headers: {
