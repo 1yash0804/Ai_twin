@@ -28,9 +28,14 @@ pinecone>=5.0.0
 langchain-pinecone>=0.2.0
 langchain-huggingface>=0.1.0
 sentence-transformers>=3.0.0
+<<<<<<< HEAD
 pypdf>=5.0.0
 apscheduler>=3.10.4
 psycopg[binary]>=3.2.1
 langchain-core>=0.3.0
 langchain-text-splitters>=0.3.0
 tavily-python>=0.5.0
+=======
+torch>=2.0.0
+pypdf>=5.0.0
+>>>>>>> b82f99e1826d6d681166f5f7b2b4cf73b71328d2
