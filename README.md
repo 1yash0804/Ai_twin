@@ -225,6 +225,35 @@ npm run dev
 
 ---
 
+
+## Deploying on Railway
+
+This repo is deployable on Railway as **two services** (`backend/` and `frontend/`) plus a Redis add-on.
+
+### Backend service (root: `backend/`)
+- Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Worker service (recommended separate Railway service): `celery -A app.core.celery_app worker --loglevel=info`
+- Required env vars:
+  - `SECRET_KEY`
+  - `DATABASE_URL` (Railway Postgres connection string)
+  - `REDIS_URL` (Railway Redis connection string)
+  - `GROQ_API_KEY`
+  - `PINECONE_API_KEY`
+  - `PINECONE_INDEX`
+  - `CORS_ALLOW_ORIGINS` (include frontend Railway URL)
+
+### Frontend service (root: `frontend/`)
+- Build command: `npm run build`
+- Start command: `npm run start -- -p $PORT`
+- Required env vars:
+  - `NEXT_PUBLIC_API_BASE_URL` (public URL of backend service)
+
+### Notes
+- `backend/Procfile` and `backend/nixpacks.toml` are included for Railway/Nixpacks detection.
+- `frontend/Procfile` and `frontend/nixpacks.toml` are included for Railway/Nixpacks detection.
+
+---
+
 ## Telegram Webhook Setup
 
 Detailed guide: `backend/docs/telegram_webhook.md`
