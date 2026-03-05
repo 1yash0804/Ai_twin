@@ -4,10 +4,9 @@ import os
 
 # Connect to Redis — gracefully handle if not running
 try:
+    redis_url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
     r = redis.Redis(
-        host='127.0.0.1', 
-        port=6379, 
-        db=0, 
+        from_url=redis_url,
         decode_responses=True,
         socket_connect_timeout=2
     )

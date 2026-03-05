@@ -1,13 +1,15 @@
+import os
+
 from sqlalchemy import inspect, text
 from sqlmodel import SQLModel, Session, create_engine
 
-# 1. The File Name (Simple SQLite for now)
-sqlite_file_name = "database.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
+# Prefer externally-provided database URLs (Railway/Postgres in production).
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database.db")
 
 # 2. The Engine
-connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, connect_args=connect_args)
+is_sqlite = DATABASE_URL.startswith("sqlite")
+connect_args = {"check_same_thread": False} if is_sqlite else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 
 def _add_column_if_missing(table_name: str, column_name: str, ddl: str):
