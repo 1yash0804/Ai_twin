@@ -1,10 +1,15 @@
 from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
 from sqlmodel import Session, select
 from app.database import engine
 from app.models import InboundMessage
 
-scheduler = BackgroundScheduler()
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+except ModuleNotFoundError:
+    BackgroundScheduler = None
+
+scheduler = BackgroundScheduler() if BackgroundScheduler else None
+
 
 def purge_raw_payloads():
     """Wipe raw_payload for messages older than 24 hours."""
@@ -30,7 +35,12 @@ def purge_raw_payloads():
         if count:
             print(f"[purge] Cleared {count} raw payloads")
 
+
 def start_purge_scheduler():
+    if not scheduler:
+        print("[purge] APScheduler not installed — periodic purge disabled")
+        return
+
     scheduler.add_job(
         purge_raw_payloads,
         trigger="interval",
