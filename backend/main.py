@@ -4,10 +4,8 @@ import os
 import asyncio
 import secrets
 import hmac
-import smtplib
 import logging
 import secrets
-from email.message import EmailMessage
 from datetime import datetime, timedelta
 from collections import defaultdict
 import httpx
@@ -326,35 +324,19 @@ class TaskCreate(BaseModel):
 
 
 def send_otp_email(to_email: str, otp: str) -> tuple[bool, str | None]:
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user or "no-reply@aitwin.local")
-
-    if not smtp_host or not smtp_user or not smtp_password:
-        return False, "SMTP is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD."
-
-    msg = EmailMessage()
-    msg["Subject"] = "Your AI Twin verification code"
-    msg["From"] = smtp_from
-    msg["To"] = to_email
-    msg.set_content(f"Your OTP for AI Twin signup is: {otp}. It expires in 10 minutes.")
-
-    use_ssl = smtp_port == 465
+    import resend
+    api_key = os.getenv("RESEND_API_KEY")
+    if not api_key:
+        return False, "RESEND_API_KEY not configured"
+    
+    resend.api_key = api_key
     try:
-        if use_ssl:
-            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20) as server:
-                server.login(smtp_user, smtp_password)
-                server.send_message(msg)
-        else:
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
-                server.ehlo()
-                if os.getenv("SMTP_USE_STARTTLS", "true").lower() == "true":
-                    server.starttls()
-                    server.ehlo()
-                server.login(smtp_user, smtp_password)
-                server.send_message(msg)
+        resend.Emails.send({
+            "from": "AI Twin <onboarding@resend.dev>",
+            "to": to_email,
+            "subject": "Your AI Twin verification code",
+            "text": f"Your OTP for AI Twin signup is: {otp}. It expires in 10 minutes."
+        })
         return True, None
     except Exception as exc:
         logger.exception("Failed to send OTP email to %s", to_email)
