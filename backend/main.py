@@ -324,59 +324,33 @@ class TaskCreate(BaseModel):
 
 
 def send_otp_email(to_email: str, otp: str) -> tuple[bool, str | None]:
-    import resend
-    api_key = os.getenv("RESEND_API_KEY")
+    import requests
+    api_key = os.getenv("BREVO_API_KEY")
     if not api_key:
-        return False, "RESEND_API_KEY not configured"
+        return False, "BREVO_API_KEY not configured"
     
-    resend.api_key = api_key
     try:
-        resend.Emails.send({
-            "from": "AI Twin <onboarding@resend.dev>",
-            "to": to_email,
-            "subject": "Your AI Twin verification code",
-            "text": f"Your OTP for AI Twin signup is: {otp}. It expires in 10 minutes."
-        })
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": api_key,
+                "Content-Type": "application/json"
+            },
+            json={
+                "sender": {"name": "AI Twin", "email": "singhyash0804@gmail.com"},
+                "to": [{"email": to_email}],
+                "subject": "Your AI Twin verification code",
+                "textContent": f"Your OTP for AI Twin is: {otp}. It expires in 10 minutes."
+            },
+            timeout=10
+        )
+        if response.status_code not in (200, 201):
+            return False, response.text
         return True, None
     except Exception as exc:
         logger.exception("Failed to send OTP email to %s", to_email)
         return False, str(exc)
 
-
-@app.post("/auth/request-signup-otp")
-def request_signup_otp(
-    payload: SignupOtpRequest,
-    session: Session = Depends(get_session),
-):
-    enforce_otp_rate_limit(f"signup:{payload.email.lower()}")
-    existing_username = session.exec(
-        select(User).where(User.username == payload.username)
-    ).first()
-    if existing_username:
-        raise HTTPException(status_code=400, detail="Username already taken")
-
-    existing_email = session.exec(
-        select(User).where(User.email == payload.email)
-    ).first()
-    if existing_email:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    otp = f"{secrets.randbelow(1_000_000):06d}"
-    pending_signup_otps[payload.email] = {
-        "username": payload.username,
-        "email": payload.email,
-        "hashed_password": get_password_hash(payload.password),
-        "attempts": 0,
-        "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES),
-    }
-
-    sent, error_message = send_otp_email(payload.email, otp)
-    if not sent:
-        pending_signup_otps.pop(payload.email, None)
-        raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {error_message}")
-
-    return {"status": "otp_sent", "email": payload.email}
 
 @app.post("/auth/request-login-otp")
 def request_login_otp(payload: LoginOtpRequest, session: Session = Depends(get_session)):
